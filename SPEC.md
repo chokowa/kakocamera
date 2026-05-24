@@ -36,6 +36,14 @@ Later target: iPhone.
 
 The first Android version should be a portrait-only native app.
 
+Minimum supported Android version: Android 10.
+
+Known available physical test devices:
+
+- Android 10.
+- Android 12.
+- Android 16.
+
 ## Camera Behavior
 
 - Use the front camera first.
@@ -112,6 +120,7 @@ In review mode:
 
 - The user can scrub through buffered frames.
 - The scrubber is based on the stopped preview frame as the reference point.
+- Scrubber labels should stay minimal and soft, not technical or rigid.
 - The user can inspect both past frames and delayed "future" frames that were already captured but not yet shown due to the live delay.
 - Playback and pause are available.
 - Mirror flip remains toggleable.
@@ -129,6 +138,8 @@ Primary UI language: Japanese.
 
 Keep strings localization-friendly because English localization is planned.
 
+Keep visible wording minimal, calm, and soft. Avoid stiff technical copy.
+
 Example labels:
 
 - 開始
@@ -140,6 +151,12 @@ Example labels:
 - 見返し
 - 再生
 - 一時停止
+
+Camera permission copy:
+
+- Keep any pre-permission explanation short and gentle.
+- Do not over-explain privacy unless the screen needs reassurance.
+- The key message should be that the camera is used only for mirror preview.
 
 ## Visual Direction
 
@@ -178,6 +195,5 @@ This is a starting direction, not permission for a broad architecture rewrite.
 
 ## Open Questions
 
-- Exact review scrubber labels.
-- Whether camera permission education copy is needed beyond the system prompt.
-- Minimum supported Android version.
+- Exact final review scrubber label wording.
+- Exact final camera permission explanation wording.

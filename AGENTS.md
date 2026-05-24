@@ -35,6 +35,7 @@ The app does not save video, photos, or camera frames to storage. It keeps only 
 - Initial delay: 5.0 seconds.
 - Buffer length: up to 10 seconds.
 - Preview sampling target: 15 fps.
+- Minimum Android version: Android 10.
 - Quality target: device-managed high quality, avoiding excessive downscaling.
 - Mirror mode: horizontal flip ON by default, toggleable during live preview and review.
 - Zoom: included in MVP.
@@ -53,6 +54,7 @@ The app does not save video, photos, or camera frames to storage. It keeps only 
 - For docs-only changes, review the changed documents.
 - For Android code changes, run the relevant Gradle task when available.
 - For UI/camera changes, verify on a rendered screen, emulator, or device when available.
+- Physical test devices may be available on Android 10, Android 12, and Android 16.
 - Report final verification as `Verified`, `Unverified`, and `Failed`.
 
 ## Repository Commands
