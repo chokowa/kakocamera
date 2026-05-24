@@ -9,6 +9,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -196,6 +198,15 @@ internal fun KakoMirrorScreen(
           .statusBarsPadding()
           .padding(16.dp),
     )
+
+    if (state.mode != MirrorMode.Idle || state.currentFrame != null) {
+      PreviewSliders(
+        state = state,
+        onFlashChange = onFlashChange,
+        onZoomChange = onZoomChange,
+        modifier = Modifier.fillMaxSize(),
+      )
+    }
 
     ControlPanel(
       state = state,
@@ -369,9 +380,6 @@ private fun ControlPanel(
   onPlayPause: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  var controlsExpanded by remember { mutableStateOf(false) }
-  val showFineControls = controlsExpanded || state.mode == MirrorMode.Review
-
   Surface(
     modifier = modifier.fillMaxWidth(),
     color = Color(0xF4FAFAFA),
@@ -382,25 +390,14 @@ private fun ControlPanel(
       modifier = Modifier.padding(start = 18.dp, top = 10.dp, end = 18.dp, bottom = 14.dp),
       verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-      Surface(
-        onClick = { controlsExpanded = !controlsExpanded },
-        modifier =
-          Modifier
-            .align(Alignment.CenterHorizontally)
-            .width(58.dp)
-            .height(12.dp),
-        color = Color.Transparent,
-      ) {
-        Box(contentAlignment = Alignment.Center) {
-          Box(
-            Modifier
-              .width(52.dp)
-              .height(5.dp)
-              .clip(RoundedCornerShape(99.dp))
-              .background(if (controlsExpanded) Color(0x554F87DA) else Color(0x33000000)),
-          )
-        }
-      }
+      Box(
+        Modifier
+          .align(Alignment.CenterHorizontally)
+          .width(52.dp)
+          .height(5.dp)
+          .clip(RoundedCornerShape(99.dp))
+          .background(Color(0x33000000)),
+      )
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -439,28 +436,7 @@ private fun ControlPanel(
         )
       }
 
-      CompactAdjustRow(
-        state = state,
-        onZoomChange = onZoomChange,
-        onDelayChange = onDelayChange,
-      )
-
-      if (showFineControls) {
-        FineSlider(
-          label = stringResource(R.string.zoom),
-          valueText = "${formatOneDecimal(state.zoomRatio)}x",
-          value = state.zoomRatio,
-          range = state.minZoomRatio..state.maxZoomRatio,
-          onValueChange = onZoomChange,
-        )
-        FineSlider(
-          label = stringResource(R.string.light),
-          valueText = "${(state.flashStrength * 100).toInt()}%",
-          value = state.flashStrength,
-          range = 0f..1f,
-          onValueChange = onFlashChange,
-        )
-      }
+      CompactDelayButton(state = state, onDelayChange = onDelayChange)
 
       if (state.mode == MirrorMode.Review) {
         Row(
@@ -513,67 +489,143 @@ private fun RoundControlButton(
 }
 
 @Composable
-private fun CompactAdjustRow(
-  state: MirrorUiState,
-  onZoomChange: (Float) -> Unit,
-  onDelayChange: (Float) -> Unit,
-) {
-  Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(18.dp)) {
-    Row(
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      Text(stringResource(R.string.zoom), style = MaterialTheme.typography.labelLarge)
-      MiniStepButton("−") { onZoomChange((state.zoomRatio - 0.1f).coerceAtLeast(state.minZoomRatio)) }
-      Text("${formatOneDecimal(state.zoomRatio)}x", color = Color(0xFF4F87DA), style = MaterialTheme.typography.labelLarge)
-      MiniStepButton("+") { onZoomChange((state.zoomRatio + 0.1f).coerceAtMost(state.maxZoomRatio)) }
-      Box(Modifier.weight(1f))
-      Text(stringResource(R.string.delay), style = MaterialTheme.typography.labelLarge)
-      MiniStepButton("−") { onDelayChange((state.delaySeconds - 0.5f).coerceAtLeast(0f)) }
-      Text("${formatOneDecimal(state.delaySeconds)}秒", color = Color(0xFF4F87DA), style = MaterialTheme.typography.labelLarge)
-      MiniStepButton("+") { onDelayChange((state.delaySeconds + 0.5f).coerceAtMost(10f)) }
-    }
-  }
-}
-
-@Composable
-private fun MiniStepButton(text: String, onClick: () -> Unit) {
+private fun CompactDelayButton(state: MirrorUiState, onDelayChange: (Float) -> Unit) {
   Surface(
-    onClick = onClick,
-    modifier = Modifier.size(32.dp),
-    shape = CircleShape,
-    color = Color.White,
-    contentColor = Color(0xFF5D626B),
+    onClick = { onDelayChange(nextDelayPreset(state.delaySeconds)) },
+    color = Color.White.copy(alpha = 0.72f),
+    shape = RoundedCornerShape(18.dp),
   ) {
-    Box(contentAlignment = Alignment.Center) {
-      Text(text, style = MaterialTheme.typography.titleLarge)
-    }
-  }
-}
-
-@Composable
-private fun FineSlider(
-  label: String,
-  valueText: String,
-  value: Float,
-  range: ClosedFloatingPointRange<Float>,
-  onValueChange: (Float) -> Unit,
-) {
-  Surface(color = Color.White.copy(alpha = 0.62f), shape = RoundedCornerShape(16.dp)) {
-    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        Text(valueText, style = MaterialTheme.typography.labelLarge, color = Color(0xFF4F87DA))
-      }
-      if (range.endInclusive > range.start) {
-        Slider(
-          value = value.coerceIn(range.start, range.endInclusive),
-          onValueChange = onValueChange,
-          valueRange = range,
+    Row(
+      modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text("◷", color = Color(0xFF5D626B), style = MaterialTheme.typography.titleLarge)
+      Text(stringResource(R.string.delay), style = MaterialTheme.typography.labelLarge)
+      Box(Modifier.weight(1f))
+      Surface(shape = RoundedCornerShape(999.dp), color = Color.White, contentColor = Color(0xFF4F87DA)) {
+        Text(
+          text = "${formatDelay(state.delaySeconds)}秒",
+          modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.SemiBold,
         )
       }
     }
+  }
+}
+
+@Composable
+private fun PreviewSliders(
+  state: MirrorUiState,
+  onFlashChange: (Float) -> Unit,
+  onZoomChange: (Float) -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  Box(modifier) {
+    FloatingVerticalSlider(
+      value = state.flashStrength,
+      valueRange = 0f..1f,
+      onValueChange = onFlashChange,
+      label = stringResource(R.string.light),
+      symbol = "○",
+      modifier =
+        Modifier
+          .align(Alignment.CenterStart)
+          .padding(start = 18.dp, top = 120.dp, bottom = 310.dp),
+    )
+    FloatingVerticalSlider(
+      value = state.zoomRatio,
+      valueRange = state.minZoomRatio..state.maxZoomRatio,
+      onValueChange = onZoomChange,
+      label = stringResource(R.string.zoom),
+      symbol = "+",
+      modifier =
+        Modifier
+          .align(Alignment.CenterEnd)
+          .padding(end = 18.dp, top = 120.dp, bottom = 310.dp),
+    )
+  }
+}
+
+@Composable
+private fun FloatingVerticalSlider(
+  value: Float,
+  valueRange: ClosedFloatingPointRange<Float>,
+  onValueChange: (Float) -> Unit,
+  label: String,
+  symbol: String,
+  modifier: Modifier = Modifier,
+) {
+  Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.Center,
+  ) {
+    var trackHeightPx by remember { mutableStateOf(1) }
+    val fraction =
+      if (valueRange.endInclusive > valueRange.start) {
+        ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+      } else {
+        0f
+      }
+    fun updateFromY(y: Float) {
+      val fromBottom = 1f - (y / trackHeightPx).coerceIn(0f, 1f)
+      val next = valueRange.start + (valueRange.endInclusive - valueRange.start) * fromBottom
+      onValueChange(next.coerceIn(valueRange.start, valueRange.endInclusive))
+    }
+
+    Surface(
+      modifier =
+        Modifier
+          .weight(1f)
+          .width(42.dp)
+          .onSizeChanged { trackHeightPx = it.height.coerceAtLeast(1) }
+          .pointerInput(valueRange) {
+            detectDragGestures(
+              onDragStart = { offset -> updateFromY(offset.y) },
+              onDrag = { change, _ -> updateFromY(change.position.y) },
+            )
+          },
+      shape = RoundedCornerShape(999.dp),
+      color = Color.White.copy(alpha = 0.16f),
+    ) {
+      Box(contentAlignment = Alignment.Center) {
+        Box(
+          Modifier
+            .width(4.dp)
+            .fillMaxHeight()
+            .padding(vertical = 12.dp)
+            .clip(RoundedCornerShape(99.dp))
+            .background(Color.White.copy(alpha = 0.48f)),
+        )
+        Box(
+          Modifier
+            .align(Alignment.BottomCenter)
+            .graphicsLayer { translationY = -trackHeightPx * fraction }
+            .size(28.dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.90f)),
+          contentAlignment = Alignment.Center,
+        ) {
+          Box(
+            modifier =
+              Modifier
+                .size(9.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF4F87DA)),
+          )
+        }
+      }
+    }
+    Surface(
+      shape = CircleShape,
+      color = Color.White.copy(alpha = 0.86f),
+      contentColor = Color(0xFF4F87DA),
+    ) {
+      Text(symbol, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp), fontWeight = FontWeight.SemiBold)
+    }
+    Text(label, color = Color.White, style = MaterialTheme.typography.labelSmall)
   }
 }
 
@@ -599,6 +651,15 @@ private fun ReviewSlider(state: MirrorUiState, onReviewPositionChange: (Float) -
 }
 
 private fun formatOneDecimal(value: Float): String = String.format(Locale.JAPAN, "%.1f", value)
+
+private fun formatDelay(value: Float): String =
+  if (value % 1f == 0f) value.toInt().toString() else formatOneDecimal(value)
+
+private fun nextDelayPreset(current: Float): Float {
+  val presets = listOf(0f, 2f, 5f, 10f)
+  val next = presets.firstOrNull { it > current + 0.1f }
+  return next ?: presets.first()
+}
 
 @Preview(showBackground = true, widthDp = 390, heightDp = 844)
 @Composable
