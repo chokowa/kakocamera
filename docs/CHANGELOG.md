@@ -4,6 +4,7 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-24
 
+- Redesigned the live mirror UI so the camera preview remains dominant: compact translucent bottom controls, top title overlay, quick light/stop/flip actions, compact zoom/delay steppers, and tap-to-expand fine sliders.
 - Scaffolded Android Compose project.
 - Implemented the first CameraX-based delayed preview MVP pass with in-memory frame buffering, stop-and-review mode, mirror flip, zoom controls, side-strip pseudo flash, Japanese UI strings, and local settings persistence.
 - Added a minimal unit test for frame ring-buffer behavior.

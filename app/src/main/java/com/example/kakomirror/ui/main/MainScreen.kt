@@ -10,11 +10,11 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -26,7 +26,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -242,7 +244,7 @@ private fun FramePreview(
         scaleX = reviewZoom
         scaleY = reviewZoom
       },
-    contentScale = ContentScale.Fit,
+    contentScale = ContentScale.Crop,
     alignment = Alignment.Center,
   )
 }
@@ -258,22 +260,40 @@ private fun MirrorFrame.toDisplayBitmap(mirrorFlip: Boolean): Bitmap {
 @Composable
 private fun PseudoFlash(strength: Float, modifier: Modifier = Modifier) {
   if (strength <= 0.01f) return
-  val width = (8 + strength * 28).dp
-  val color = Color.White.copy(alpha = 0.22f + strength * 0.58f)
+  val glowWidth = (34 + strength * 28).dp
+  val coreWidth = (8 + strength * 8).dp
+  val glowColor = Color.White.copy(alpha = 0.10f + strength * 0.22f)
+  val coreColor = Color.White.copy(alpha = 0.48f + strength * 0.42f)
   Box(modifier) {
+    FlashBar(Alignment.CenterStart, glowWidth, coreWidth, glowColor, coreColor)
+    FlashBar(Alignment.CenterEnd, glowWidth, coreWidth, glowColor, coreColor)
+  }
+}
+
+@Composable
+private fun BoxScope.FlashBar(
+  alignment: Alignment,
+  glowWidth: androidx.compose.ui.unit.Dp,
+  coreWidth: androidx.compose.ui.unit.Dp,
+  glowColor: Color,
+  coreColor: Color,
+) {
+  Box(
+    Modifier
+      .align(alignment)
+      .padding(horizontal = 18.dp, vertical = 68.dp)
+      .fillMaxHeight()
+      .width(glowWidth)
+      .clip(RoundedCornerShape(999.dp))
+      .background(glowColor),
+    contentAlignment = Alignment.Center,
+  ) {
     Box(
       Modifier
-        .align(Alignment.CenterStart)
         .fillMaxHeight()
-        .width(width)
-        .background(color),
-    )
-    Box(
-      Modifier
-        .align(Alignment.CenterEnd)
-        .fillMaxHeight()
-        .width(width)
-        .background(color),
+        .width(coreWidth)
+        .clip(RoundedCornerShape(999.dp))
+        .background(coreColor),
     )
   }
 }
@@ -317,21 +337,21 @@ private fun StartPanel(
 
 @Composable
 private fun TopStatus(state: MirrorUiState, modifier: Modifier = Modifier) {
-  Surface(
+  Column(
     modifier = modifier,
-    color = Color.Black.copy(alpha = 0.34f),
-    contentColor = Color.White,
-    shape = MaterialTheme.shapes.large,
+    horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-      horizontalArrangement = Arrangement.spacedBy(12.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      Text(text = "${formatOneDecimal(state.delaySeconds)}秒")
-      Text(text = "${formatOneDecimal(state.zoomRatio)}x")
-      if (state.mirrorFlip) Text(text = stringResource(R.string.mirror_flip))
-    }
+    Text(
+      text = stringResource(R.string.ready_title),
+      color = Color.White,
+      style = MaterialTheme.typography.headlineSmall,
+      fontWeight = FontWeight.SemiBold,
+    )
+    Text(
+      text = "${formatOneDecimal(state.delaySeconds)}秒遅れ",
+      color = Color.White.copy(alpha = 0.88f),
+      style = MaterialTheme.typography.bodyLarge,
+    )
   }
 }
 
@@ -349,97 +369,210 @@ private fun ControlPanel(
   onPlayPause: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  var controlsExpanded by remember { mutableStateOf(false) }
+  val showFineControls = controlsExpanded || state.mode == MirrorMode.Review
+
   Surface(
     modifier = modifier.fillMaxWidth(),
-    color = Color(0xE6121418),
-    contentColor = Color.White,
-    shape = MaterialTheme.shapes.extraLarge,
+    color = Color(0xF4FAFAFA),
+    contentColor = Color(0xFF42464F),
+    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomStart = 20.dp, bottomEnd = 20.dp),
   ) {
     Column(
-      modifier = Modifier.padding(14.dp),
-      verticalArrangement = Arrangement.spacedBy(10.dp),
+      modifier = Modifier.padding(start = 18.dp, top = 10.dp, end = 18.dp, bottom = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      Surface(
+        onClick = { controlsExpanded = !controlsExpanded },
+        modifier =
+          Modifier
+            .align(Alignment.CenterHorizontally)
+            .width(58.dp)
+            .height(12.dp),
+        color = Color.Transparent,
       ) {
-        Button(
-          onClick = if (state.mode == MirrorMode.Live) onStop else onStart,
-          modifier = Modifier.weight(1f),
-        ) {
-          Text(if (state.mode == MirrorMode.Live) stringResource(R.string.stop) else stringResource(R.string.start))
-        }
-        FilledTonalButton(
-          onClick = onReviewClick,
-          enabled = state.canReview,
-          modifier = Modifier.weight(1f),
-        ) {
-          Text(if (state.canReview) stringResource(R.string.buffer_ready) else stringResource(R.string.buffer_empty))
+        Box(contentAlignment = Alignment.Center) {
+          Box(
+            Modifier
+              .width(52.dp)
+              .height(5.dp)
+              .clip(RoundedCornerShape(99.dp))
+              .background(if (controlsExpanded) Color(0x554F87DA) else Color(0x33000000)),
+          )
         }
       }
-
-      LabeledSlider(
-        label = stringResource(R.string.delay),
-        valueText = "${formatOneDecimal(state.delaySeconds)}秒",
-        value = state.delaySeconds,
-        range = 0f..10f,
-        onValueChange = onDelayChange,
-      )
-      LabeledSlider(
-        label = stringResource(R.string.light),
-        valueText = "${(state.flashStrength * 100).toInt()}%",
-        value = state.flashStrength,
-        range = 0f..1f,
-        onValueChange = onFlashChange,
-      )
-      LabeledSlider(
-        label = stringResource(R.string.zoom),
-        valueText = "${formatOneDecimal(state.zoomRatio)}x",
-        value = state.zoomRatio,
-        range = state.minZoomRatio..state.maxZoomRatio,
-        onValueChange = onZoomChange,
-      )
-
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        TextButton(onClick = onMirrorToggle) {
-          Text("${stringResource(R.string.mirror_flip)} ${if (state.mirrorFlip) "ON" else "OFF"}")
+        RoundControlButton(
+          symbol = if (state.flashStrength > 0.05f) "●" else "○",
+          label = stringResource(R.string.light),
+          active = state.flashStrength > 0.05f,
+          onClick = { onFlashChange(if (state.flashStrength > 0.05f) 0f else 0.78f) },
+        )
+        Button(
+          onClick = if (state.mode == MirrorMode.Live) onStop else onStart,
+          modifier =
+            Modifier
+              .weight(1f)
+              .height(58.dp)
+              .padding(horizontal = 18.dp),
+          shape = RoundedCornerShape(999.dp),
+          colors =
+            ButtonDefaults.buttonColors(
+              containerColor = Color(0xFF5D94E6),
+              contentColor = Color.White,
+            ),
+        ) {
+          Text(
+            if (state.mode == MirrorMode.Live) stringResource(R.string.stop) else stringResource(R.string.start),
+            style = MaterialTheme.typography.titleLarge,
+          )
         }
-        if (state.mode == MirrorMode.Review) {
+        RoundControlButton(
+          symbol = "↔",
+          label = stringResource(R.string.mirror_flip),
+          active = state.mirrorFlip,
+          onClick = onMirrorToggle,
+        )
+      }
+
+      CompactAdjustRow(
+        state = state,
+        onZoomChange = onZoomChange,
+        onDelayChange = onDelayChange,
+      )
+
+      if (showFineControls) {
+        FineSlider(
+          label = stringResource(R.string.zoom),
+          valueText = "${formatOneDecimal(state.zoomRatio)}x",
+          value = state.zoomRatio,
+          range = state.minZoomRatio..state.maxZoomRatio,
+          onValueChange = onZoomChange,
+        )
+        FineSlider(
+          label = stringResource(R.string.light),
+          valueText = "${(state.flashStrength * 100).toInt()}%",
+          value = state.flashStrength,
+          range = 0f..1f,
+          onValueChange = onFlashChange,
+        )
+      }
+
+      if (state.mode == MirrorMode.Review) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.Center,
+        ) {
           TextButton(onClick = onPlayPause) {
             Text(if (state.isPlaying) stringResource(R.string.pause) else stringResource(R.string.play))
           }
         }
-      }
-
-      if (state.mode == MirrorMode.Review) {
         ReviewSlider(state = state, onReviewPositionChange = onReviewPositionChange)
+      } else {
+        FilledTonalButton(
+          onClick = onReviewClick,
+          enabled = state.canReview,
+          modifier =
+            Modifier
+              .fillMaxWidth()
+              .height(48.dp),
+          shape = RoundedCornerShape(999.dp),
+        ) {
+          Text(if (state.canReview) "▶ ${stringResource(R.string.review)}" else stringResource(R.string.buffer_empty))
+        }
       }
     }
   }
 }
 
 @Composable
-private fun LabeledSlider(
+private fun RoundControlButton(
+  symbol: String,
+  label: String,
+  active: Boolean,
+  onClick: () -> Unit,
+) {
+  Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Surface(
+      onClick = onClick,
+      modifier = Modifier.size(58.dp),
+      shape = CircleShape,
+      color = Color.White.copy(alpha = 0.92f),
+      contentColor = if (active) Color(0xFF4F87DA) else Color(0xFF5D626B),
+    ) {
+      Box(contentAlignment = Alignment.Center) {
+        Text(symbol, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+      }
+    }
+    Text(label, style = MaterialTheme.typography.labelMedium, color = Color(0xFF5D626B))
+  }
+}
+
+@Composable
+private fun CompactAdjustRow(
+  state: MirrorUiState,
+  onZoomChange: (Float) -> Unit,
+  onDelayChange: (Float) -> Unit,
+) {
+  Surface(color = Color.White.copy(alpha = 0.72f), shape = RoundedCornerShape(18.dp)) {
+    Row(
+      modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+      Text(stringResource(R.string.zoom), style = MaterialTheme.typography.labelLarge)
+      MiniStepButton("−") { onZoomChange((state.zoomRatio - 0.1f).coerceAtLeast(state.minZoomRatio)) }
+      Text("${formatOneDecimal(state.zoomRatio)}x", color = Color(0xFF4F87DA), style = MaterialTheme.typography.labelLarge)
+      MiniStepButton("+") { onZoomChange((state.zoomRatio + 0.1f).coerceAtMost(state.maxZoomRatio)) }
+      Box(Modifier.weight(1f))
+      Text(stringResource(R.string.delay), style = MaterialTheme.typography.labelLarge)
+      MiniStepButton("−") { onDelayChange((state.delaySeconds - 0.5f).coerceAtLeast(0f)) }
+      Text("${formatOneDecimal(state.delaySeconds)}秒", color = Color(0xFF4F87DA), style = MaterialTheme.typography.labelLarge)
+      MiniStepButton("+") { onDelayChange((state.delaySeconds + 0.5f).coerceAtMost(10f)) }
+    }
+  }
+}
+
+@Composable
+private fun MiniStepButton(text: String, onClick: () -> Unit) {
+  Surface(
+    onClick = onClick,
+    modifier = Modifier.size(32.dp),
+    shape = CircleShape,
+    color = Color.White,
+    contentColor = Color(0xFF5D626B),
+  ) {
+    Box(contentAlignment = Alignment.Center) {
+      Text(text, style = MaterialTheme.typography.titleLarge)
+    }
+  }
+}
+
+@Composable
+private fun FineSlider(
   label: String,
   valueText: String,
   value: Float,
   range: ClosedFloatingPointRange<Float>,
   onValueChange: (Float) -> Unit,
 ) {
-  Column {
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-      Text(label, style = MaterialTheme.typography.labelLarge)
-      Text(valueText, style = MaterialTheme.typography.labelLarge)
-    }
-    if (range.endInclusive > range.start) {
-      Slider(value = value.coerceIn(range.start, range.endInclusive), onValueChange = onValueChange, valueRange = range)
+  Surface(color = Color.White.copy(alpha = 0.62f), shape = RoundedCornerShape(16.dp)) {
+    Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.labelLarge)
+        Text(valueText, style = MaterialTheme.typography.labelLarge, color = Color(0xFF4F87DA))
+      }
+      if (range.endInclusive > range.start) {
+        Slider(
+          value = value.coerceIn(range.start, range.endInclusive),
+          onValueChange = onValueChange,
+          valueRange = range,
+        )
+      }
     }
   }
 }
