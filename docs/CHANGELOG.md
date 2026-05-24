@@ -2,6 +2,13 @@
 
 This file records user-approved product and implementation direction changes, including temporary overrides.
 
+## 2026-05-25
+
+- Further minimized the mirror UI toward the latest reference: preview-first layout, a faint bottom control band, compact light/stop/flip buttons, and a subtle review dial instead of a large bottom review button.
+- Confirmed zoom and light brightness sliders should remain on the preview but be visually quieter.
+- Confirmed pseudo-flash brightness should change the whiteness/glow of the fixed-width side light strips, not significantly change their width.
+- Moved delay rotation out of the bottom controls; the top delay label now acts as the minimal delay preset control.
+
 ## 2026-05-24
 
 - Moved zoom and light adjustments onto the preview as vertical overlay sliders, removed zoom from the bottom control area, and changed delay control to a tap-to-rotate preset row.

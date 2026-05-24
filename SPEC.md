@@ -1,6 +1,6 @@
 # Kako Mirror MVP Specification
 
-Last updated: 2026-05-24
+Last updated: 2026-05-25
 
 ## Product
 
@@ -110,6 +110,7 @@ Pseudo flash:
 
 - Implement as vertical light strips on the left and right edges of the screen.
 - Do not use a full-screen white overlay for the pseudo flash.
+- Keep the light strip width stable; brightness should mainly change whiteness and glow strength.
 - Visual concept: `| preview |`, where the side bars act as light.
 
 ## Start State
@@ -181,7 +182,9 @@ Avoid:
 Prefer:
 
 - Large preview.
-- Clear bottom controls.
+- Minimal translucent bottom controls.
+- A subtle review dial or equivalent lightweight affordance instead of a heavy editor panel.
+- Quiet preview-overlay sliders for zoom and pseudo-flash brightness.
 - One-handed operation.
 - No accidental horizontal overflow.
 - Mobile-first portrait layout.
