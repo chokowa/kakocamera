@@ -62,6 +62,7 @@ Known available physical test devices:
 - Initial delay: 5.0 seconds.
 - Target preview sampling rate: 15 fps.
 - Quality: let the device provide high quality where practical; do not over-compress or over-downscale.
+- Prefer 4:3 camera analysis output with a high target size when available, because fixed 16:9 can crop front-camera field of view before the app renders the frame.
 - Keep a maximum 10-second in-memory buffer.
 - Do not save frames, photos, videos, or review data to persistent storage.
 - Clear the buffer when the app exits or when a new camera start begins.
@@ -104,6 +105,7 @@ Zoom:
 - Support pinch-in and pinch-out on the preview.
 - Support a zoom slider.
 - Use the camera's available zoom range when possible, and clamp the UI to the selected device's supported range.
+- Do not force the minimum zoom to 1.0 if CameraX reports a lower supported zoom-out value.
 - Persist the zoom value only when it can be restored reliably for the selected camera.
 
 Pseudo flash:
@@ -182,6 +184,7 @@ Avoid:
 Prefer:
 
 - Large preview.
+- Display the full camera frame where practical, using background fill rather than cropping the main mirror image.
 - Minimal translucent bottom controls.
 - A subtle review dial or equivalent lightweight affordance instead of a heavy editor panel.
 - Quiet preview-overlay sliders for zoom and pseudo-flash brightness.

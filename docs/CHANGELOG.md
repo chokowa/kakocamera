@@ -4,6 +4,10 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-25
 
+- Reworked the bottom controls as a custom-drawn glass panel with a semicircular review dial and tick marks, because the previous stacked Material surfaces were too far from the reference quality.
+- Changed camera analysis resolution selection from fixed 16:9 to a 4:3-priority `ResolutionSelector` to reduce unnecessary front-camera crop while keeping a high target size.
+- Changed frame display to show the real camera frame with `ContentScale.Fit` over a cropped background layer, so the user sees more of the front-camera field of view instead of a forced full-screen crop.
+- Stopped forcing CameraX zoom range to 1.0 or higher so devices that expose zoom-out values below 1.0 can use their real minimum zoom.
 - Further minimized the mirror UI toward the latest reference: preview-first layout, a faint bottom control band, compact light/stop/flip buttons, and a subtle review dial instead of a large bottom review button.
 - Confirmed zoom and light brightness sliders should remain on the preview but be visually quieter.
 - Confirmed pseudo-flash brightness should change the whiteness/glow of the fixed-width side light strips, not significantly change their width.

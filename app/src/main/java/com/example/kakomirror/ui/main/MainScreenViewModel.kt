@@ -32,7 +32,7 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
             delaySeconds = settings.delaySeconds,
             mirrorFlip = settings.mirrorFlip,
             flashStrength = settings.flashStrength,
-            zoomRatio = settings.zoomRatio.coerceIn(1f, it.maxZoomRatio),
+            zoomRatio = settings.zoomRatio.coerceIn(it.minZoomRatio, it.maxZoomRatio),
           )
         }
       }
@@ -135,12 +135,12 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
   }
 
   fun setZoom(ratio: Float) {
-    _uiState.update { it.copy(zoomRatio = ratio.coerceIn(1f, it.maxZoomRatio)) }
+    _uiState.update { it.copy(zoomRatio = ratio.coerceIn(it.minZoomRatio, it.maxZoomRatio)) }
     saveSettings()
   }
 
   fun setZoomRange(min: Float, max: Float) {
-    val safeMin = min.coerceAtLeast(1f)
+    val safeMin = min.coerceAtLeast(0.1f)
     val safeMax = max.coerceAtLeast(safeMin)
     _uiState.update {
       it.copy(

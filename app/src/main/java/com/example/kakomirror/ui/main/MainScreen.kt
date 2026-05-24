@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -44,8 +45,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -65,6 +71,9 @@ import com.example.kakomirror.camera.CameraMirrorController
 import com.example.kakomirror.model.MirrorFrame
 import com.example.kakomirror.theme.KakoMirrorTheme
 import java.util.Locale
+import kotlin.math.cos
+import kotlin.math.min
+import kotlin.math.sin
 
 @Composable
 fun MainScreen(
@@ -219,8 +228,7 @@ internal fun KakoMirrorScreen(
       modifier =
         Modifier
           .align(Alignment.BottomCenter)
-          .navigationBarsPadding()
-          .padding(12.dp),
+          .navigationBarsPadding(),
     )
   }
 }
@@ -244,17 +252,31 @@ private fun FramePreview(
   }
 
   val bitmap = remember(frame, mirrorFlip) { frame.toDisplayBitmap(mirrorFlip) }
-  Image(
-    bitmap = bitmap.asImageBitmap(),
-    contentDescription = null,
-    modifier =
-      modifier.graphicsLayer {
-        scaleX = reviewZoom
-        scaleY = reviewZoom
-      },
-    contentScale = ContentScale.Crop,
-    alignment = Alignment.Center,
-  )
+  Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+    Image(
+      bitmap = bitmap.asImageBitmap(),
+      contentDescription = null,
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .graphicsLayer { alpha = 0.42f },
+      contentScale = ContentScale.Crop,
+      alignment = Alignment.Center,
+    )
+    Image(
+      bitmap = bitmap.asImageBitmap(),
+      contentDescription = null,
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .graphicsLayer {
+            scaleX = reviewZoom
+            scaleY = reviewZoom
+          },
+      contentScale = ContentScale.Fit,
+      alignment = Alignment.Center,
+    )
+  }
 }
 
 private fun MirrorFrame.toDisplayBitmap(mirrorFlip: Boolean): Bitmap {
@@ -386,67 +408,141 @@ private fun ControlPanel(
   onPlayPause: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Surface(
-    modifier = modifier.fillMaxWidth(),
-    color = Color.White.copy(alpha = 0.56f),
-    contentColor = Color(0xFF42464F),
-    shape = RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
+  val isReview = state.mode == MirrorMode.Review
+  Box(
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .height(if (isReview) 218.dp else 156.dp),
   ) {
-    Column(
-      modifier = Modifier.padding(start = 18.dp, top = 8.dp, end = 18.dp, bottom = 12.dp),
-      verticalArrangement = Arrangement.spacedBy(8.dp),
-      horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-      Box(
+    GlassControlsBackground(modifier = Modifier.fillMaxSize())
+    Box(
+      Modifier
+        .align(Alignment.TopCenter)
+        .offset(y = 82.dp)
+        .width(48.dp)
+        .height(4.dp)
+        .clip(RoundedCornerShape(99.dp))
+        .background(Color(0x22000000)),
+    )
+    ReviewDial(
+      state = state,
+      onReviewClick = onReviewClick,
+      onPlayPause = onPlayPause,
+      modifier =
         Modifier
-          .width(48.dp)
-          .height(4.dp)
-          .clip(RoundedCornerShape(99.dp))
-          .background(Color(0x22000000)),
+          .align(Alignment.TopCenter)
+          .offset(y = 15.dp),
+    )
+    RoundControlButton(
+      symbol = "○",
+      label = stringResource(R.string.light),
+      active = state.flashStrength > 0.05f,
+      onClick = { onFlashChange(if (state.flashStrength > 0.05f) 0f else 0.78f) },
+      modifier =
+        Modifier
+          .align(Alignment.BottomStart)
+          .padding(start = 58.dp, bottom = if (isReview) 68.dp else 8.dp),
+    )
+    Button(
+      onClick = if (state.mode == MirrorMode.Live) onStop else onStart,
+      modifier =
+        Modifier
+          .align(Alignment.BottomCenter)
+          .padding(bottom = if (isReview) 80.dp else 24.dp)
+          .width(136.dp)
+          .height(44.dp),
+      shape = RoundedCornerShape(999.dp),
+      colors =
+        ButtonDefaults.buttonColors(
+          containerColor = Color(0xFF5D94E6),
+          contentColor = Color.White,
+        ),
+    ) {
+      Text(
+        if (state.mode == MirrorMode.Live) stringResource(R.string.stop) else stringResource(R.string.start),
+        style = MaterialTheme.typography.titleMedium,
       )
-      ReviewDial(state = state, onReviewClick = onReviewClick, onPlayPause = onPlayPause)
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-      ) {
-        RoundControlButton(
-          symbol = if (state.flashStrength > 0.05f) "●" else "○",
-          label = stringResource(R.string.light),
-          active = state.flashStrength > 0.05f,
-          onClick = { onFlashChange(if (state.flashStrength > 0.05f) 0f else 0.78f) },
-        )
-        Button(
-          onClick = if (state.mode == MirrorMode.Live) onStop else onStart,
-          modifier =
-            Modifier
-              .weight(1f)
-              .height(52.dp)
-              .padding(horizontal = 32.dp),
-          shape = RoundedCornerShape(999.dp),
-          colors =
-            ButtonDefaults.buttonColors(
-              containerColor = Color(0xFF5D94E6),
-              contentColor = Color.White,
-            ),
-        ) {
-          Text(
-            if (state.mode == MirrorMode.Live) stringResource(R.string.stop) else stringResource(R.string.start),
-            style = MaterialTheme.typography.titleMedium,
-          )
-        }
-        RoundControlButton(
-          symbol = "↔",
-          label = stringResource(R.string.mirror_flip),
-          active = state.mirrorFlip,
-          onClick = onMirrorToggle,
-        )
-      }
+    }
+    RoundControlButton(
+      symbol = "↔",
+      label = stringResource(R.string.mirror_flip),
+      active = state.mirrorFlip,
+      onClick = onMirrorToggle,
+      modifier =
+        Modifier
+          .align(Alignment.BottomEnd)
+          .padding(end = 58.dp, bottom = if (isReview) 68.dp else 8.dp),
+    )
 
-      if (state.mode == MirrorMode.Review) {
+    if (isReview) {
+      Box(
+        modifier =
+          Modifier
+            .align(Alignment.BottomCenter)
+            .padding(horizontal = 24.dp, vertical = 8.dp),
+      ) {
         ReviewSlider(state = state, onReviewPositionChange = onReviewPositionChange)
       }
     }
+  }
+}
+
+@Composable
+private fun GlassControlsBackground(modifier: Modifier = Modifier) {
+  Canvas(modifier = modifier) {
+    val w = size.width
+    val h = size.height
+    val panelTop = h * 0.56f
+    val radius = min(w * 0.205f, panelTop * 0.98f)
+    val center = Offset(w / 2f, panelTop)
+    val glass = Color.White.copy(alpha = 0.52f)
+
+    drawRoundRect(
+      color = glass,
+      topLeft = Offset(0f, panelTop),
+      size = Size(w, h - panelTop),
+      cornerRadius = CornerRadius(54f, 54f),
+    )
+    drawArc(
+      color = glass,
+      startAngle = 180f,
+      sweepAngle = 180f,
+      useCenter = true,
+      topLeft = Offset(center.x - radius, center.y - radius),
+      size = Size(radius * 2f, radius * 2f),
+    )
+    drawArc(
+      color = Color.White.copy(alpha = 0.58f),
+      startAngle = 180f,
+      sweepAngle = 180f,
+      useCenter = false,
+      topLeft = Offset(center.x - radius, center.y - radius),
+      size = Size(radius * 2f, radius * 2f),
+      style = Stroke(width = 2.4f, cap = StrokeCap.Round),
+    )
+
+    val tickOuter = radius - 18f
+    val tickInner = radius - 30f
+    repeat(23) { index ->
+      val degrees = 204f + index * (132f / 22f)
+      val radians = Math.toRadians(degrees.toDouble())
+      val start = Offset(
+        center.x + cos(radians).toFloat() * tickInner,
+        center.y + sin(radians).toFloat() * tickInner,
+      )
+      val end = Offset(
+        center.x + cos(radians).toFloat() * tickOuter,
+        center.y + sin(radians).toFloat() * tickOuter,
+      )
+      drawLine(Color(0x885D626B), start, end, strokeWidth = 1.4f, cap = StrokeCap.Round)
+    }
+
+    drawCircle(
+      color = Color(0xFF5D94E6),
+      radius = 6.5f,
+      center = Offset(center.x, center.y - radius + 16f),
+    )
   }
 }
 
@@ -455,33 +551,33 @@ private fun ReviewDial(
   state: MirrorUiState,
   onReviewClick: () -> Unit,
   onPlayPause: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
   val enabled = state.canReview || state.mode == MirrorMode.Review
   Surface(
     onClick = if (state.mode == MirrorMode.Review) onPlayPause else onReviewClick,
     enabled = enabled,
     modifier =
-      Modifier
-        .width(228.dp)
-        .height(72.dp)
-        .offset(y = 4.dp),
-    shape = RoundedCornerShape(topStart = 120.dp, topEnd = 120.dp, bottomStart = 18.dp, bottomEnd = 18.dp),
-    color = Color.White.copy(alpha = if (enabled) 0.42f else 0.24f),
+      modifier
+        .width(138.dp)
+        .height(72.dp),
+    shape = RoundedCornerShape(999.dp),
+    color = Color.Transparent,
     contentColor = if (enabled) Color(0xFF5D626B) else Color(0x775D626B),
   ) {
     Column(
-      modifier = Modifier.padding(top = 12.dp),
+      modifier = Modifier.padding(top = 8.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.Center,
     ) {
       Text(
         if (state.mode == MirrorMode.Review && state.isPlaying) "⏸" else "▶",
-        style = MaterialTheme.typography.headlineSmall,
+        style = MaterialTheme.typography.titleLarge,
         fontWeight = FontWeight.SemiBold,
       )
       Text(
         if (enabled) stringResource(R.string.review) else stringResource(R.string.buffer_empty),
-        style = MaterialTheme.typography.bodyMedium,
+        style = MaterialTheme.typography.labelLarge,
       )
     }
   }
@@ -493,11 +589,16 @@ private fun RoundControlButton(
   label: String,
   active: Boolean,
   onClick: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
-  Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+  Column(
+    modifier = modifier,
+    horizontalAlignment = Alignment.CenterHorizontally,
+    verticalArrangement = Arrangement.spacedBy(2.dp),
+  ) {
     Surface(
       onClick = onClick,
-      modifier = Modifier.size(50.dp),
+      modifier = Modifier.size(48.dp),
       shape = CircleShape,
       color = Color.White.copy(alpha = 0.82f),
       contentColor = if (active) Color(0xFF4F87DA) else Color(0xFF5D626B),
@@ -506,7 +607,7 @@ private fun RoundControlButton(
         Text(symbol, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
       }
     }
-    Text(label, style = MaterialTheme.typography.labelMedium, color = Color(0xFF5D626B))
+    Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFF5D626B))
   }
 }
 

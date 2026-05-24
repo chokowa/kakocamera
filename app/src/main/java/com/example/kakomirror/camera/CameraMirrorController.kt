@@ -9,6 +9,9 @@ import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
@@ -39,7 +42,17 @@ class CameraMirrorController(private val context: Context) {
 
         val analysis =
           ImageAnalysis.Builder()
-            .setTargetResolution(Size(1920, 1080))
+            .setResolutionSelector(
+              ResolutionSelector.Builder()
+                .setAspectRatioStrategy(AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY)
+                .setResolutionStrategy(
+                  ResolutionStrategy(
+                    Size(1440, 1080),
+                    ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                  ),
+                )
+                .build(),
+            )
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
             .build()
@@ -60,7 +73,10 @@ class CameraMirrorController(private val context: Context) {
 
         val selector = CameraSelector.DEFAULT_FRONT_CAMERA
         camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, analysis)
-        camera?.cameraControl?.setZoomRatio(initialZoomRatio.coerceAtLeast(1f))
+        camera?.cameraInfo?.zoomState?.value?.let { zoomState ->
+          onZoomRange(zoomState.minZoomRatio, zoomState.maxZoomRatio)
+          camera?.cameraControl?.setZoomRatio(initialZoomRatio.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio))
+        }
         camera?.cameraInfo?.zoomState?.observe(lifecycleOwner) { zoomState ->
           onZoomRange(zoomState.minZoomRatio, zoomState.maxZoomRatio)
         }
