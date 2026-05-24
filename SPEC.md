@@ -83,7 +83,10 @@ Mirror flip:
 Zoom:
 
 - Included in MVP.
-- Prefer simple digital zoom controls that stay easy to operate one-handed.
+- Support pinch-in and pinch-out on the preview.
+- Support a zoom slider.
+- Use the camera's available zoom range when possible, and clamp the UI to the selected device's supported range.
+- Persist the zoom value only when it can be restored reliably for the selected camera.
 
 Pseudo flash:
 
@@ -175,7 +178,6 @@ This is a starting direction, not permission for a broad architecture rewrite.
 
 ## Open Questions
 
-- Exact zoom control shape.
 - Exact review scrubber labels.
 - Whether camera permission education copy is needed beyond the system prompt.
 - Minimum supported Android version.

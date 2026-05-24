@@ -4,6 +4,7 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-24
 
+- Confirmed zoom controls should include both pinch-in/pinch-out on the preview and a zoom slider.
 - Confirmed settings should persist between launches.
 - Confirmed persisted settings may include delay seconds, mirror flip state, pseudo flash brightness, and zoom value where reliable.
 - Clarified that settings persistence does not allow saving camera frames, photos, videos, or review data.
