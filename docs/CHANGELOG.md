@@ -4,6 +4,9 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-24
 
+- Scaffolded Android Compose project.
+- Implemented the first CameraX-based delayed preview MVP pass with in-memory frame buffering, stop-and-review mode, mirror flip, zoom controls, side-strip pseudo flash, Japanese UI strings, and local settings persistence.
+- Added a minimal unit test for frame ring-buffer behavior.
 - Added competitor review insights and user monetization judgment to `docs/REVIEW_INSIGHTS.md`.
 - Confirmed no-ads direction, with possible in-app purchases for higher quality and flexible delay controls.
 - Clarified that the free version should still work as a useful mirror and demonstrate delayed-preview value.

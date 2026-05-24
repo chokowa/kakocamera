@@ -14,7 +14,12 @@ The app does not save captured frames. It only keeps a short in-memory buffer so
 
 ## Current Status
 
-Specification phase. No Android app has been scaffolded yet.
+Android MVP implementation is in progress. The project includes a native Compose app scaffold with CameraX-based delayed preview behavior.
+
+Useful commands:
+
+- Build debug APK: `.\gradlew.bat assembleDebug`
+- Run local tests: `.\gradlew.bat testDebugUnitTest`
 
 See:
 

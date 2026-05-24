@@ -59,11 +59,9 @@ The app does not save video, photos, or camera frames to storage. It keeps only 
 
 ## Repository Commands
 
-Fill these when the Android project is scaffolded.
-
-- Install: TODO
-- Dev: TODO
-- Build: TODO
-- Lint: TODO
-- Typecheck: TODO
-- Test: TODO
+- Install: no separate install command; use the checked-in Gradle Wrapper.
+- Dev: `.\gradlew.bat assembleDebug`
+- Build: `.\gradlew.bat assembleDebug`
+- Lint: `.\gradlew.bat lintDebug`
+- Typecheck: included in Gradle Kotlin compile tasks, for example `.\gradlew.bat assembleDebug`
+- Test: `.\gradlew.bat testDebugUnitTest`
