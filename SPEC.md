@@ -28,6 +28,16 @@ Non-goals for the MVP:
 - Cloud sync.
 - Account-based features.
 
+## Monetization Direction
+
+Avoid ads, especially disruptive or audio ads.
+
+The product may use in-app purchases to unlock higher quality modes and more flexible controls, such as delay customization.
+
+The free version should still work as a useful mirror and should demonstrate the delayed-preview value. Privacy, no-saving behavior, and basic mirror use must not be paid-only.
+
+See [docs/REVIEW_INSIGHTS.md](docs/REVIEW_INSIGHTS.md) for the review-analysis background and monetization cautions.
+
 ## Platform
 
 MVP target: Android.
@@ -197,3 +207,5 @@ This is a starting direction, not permission for a broad architecture rewrite.
 
 - Exact final review scrubber label wording.
 - Exact final camera permission explanation wording.
+- Exact free-tier limits and paid unlocks.
+- Whether paid unlocks are one-time purchase or subscription.

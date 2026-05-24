@@ -4,6 +4,9 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-24
 
+- Added competitor review insights and user monetization judgment to `docs/REVIEW_INSIGHTS.md`.
+- Confirmed no-ads direction, with possible in-app purchases for higher quality and flexible delay controls.
+- Clarified that the free version should still work as a useful mirror and demonstrate delayed-preview value.
 - Confirmed minimum supported Android version: Android 10.
 - Confirmed available physical test devices include Android 10, Android 12, and Android 16.
 - Confirmed review labels and camera permission explanation should stay minimal, soft, and not overly rigid.
