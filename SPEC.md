@@ -48,6 +48,19 @@ The first Android version should be a portrait-only native app.
 - Do not save frames, photos, videos, or review data to persistent storage.
 - Clear the buffer when the app exits or when a new camera start begins.
 
+## Settings Persistence
+
+Persist user settings locally on the device.
+
+Settings that should persist between launches:
+
+- Delay seconds.
+- Mirror flip state.
+- Pseudo flash brightness.
+- Zoom value, if technically reliable for the selected camera.
+
+Persisting settings does not change the no-saving rule for camera frames, photos, videos, or review data.
+
 ## Live Preview
 
 The main live view is a delayed mirror preview.
@@ -164,6 +177,5 @@ This is a starting direction, not permission for a broad architecture rewrite.
 
 - Exact zoom control shape.
 - Exact review scrubber labels.
-- Whether delay and flash settings persist between launches.
 - Whether camera permission education copy is needed beyond the system prompt.
 - Minimum supported Android version.

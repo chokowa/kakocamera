@@ -24,6 +24,7 @@ The app does not save video, photos, or camera frames to storage. It keeps only 
 - MVP is local-first and single-device.
 - Do not add login, cloud sync, server persistence, analytics, ads, or account features without approval.
 - Do not write camera frames to disk unless explicitly requested.
+- Persisting user settings is allowed and expected. This does not allow persisting camera frames, photos, videos, or review data.
 - Preserve the core product goal: delayed mirror preview with short private review.
 
 ## MVP Defaults

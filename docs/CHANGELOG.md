@@ -4,6 +4,9 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-24
 
+- Confirmed settings should persist between launches.
+- Confirmed persisted settings may include delay seconds, mirror flip state, pseudo flash brightness, and zoom value where reliable.
+- Clarified that settings persistence does not allow saving camera frames, photos, videos, or review data.
 - Created initial repository documentation before implementation.
 - Confirmed app concept: front-camera mirror preview delayed by a user-configurable amount.
 - Confirmed Android-first development, with iPhone planned later.
