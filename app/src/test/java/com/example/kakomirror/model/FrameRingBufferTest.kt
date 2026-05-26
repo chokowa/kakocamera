@@ -30,6 +30,18 @@ class FrameRingBufferTest {
   }
 
   @Test
+  fun defaultBuffer_prunesFramesOlderThanFiveSeconds() {
+    val buffer = FrameRingBuffer()
+
+    buffer.add(frameAt(0L))
+    buffer.add(frameAt(5_000L))
+    buffer.add(frameAt(5_100L))
+
+    assertEquals(2, buffer.size)
+    assertEquals(100L, buffer.durationMillis)
+  }
+
+  @Test
   fun relativeRangeSeconds_usesAnchorAsZero() {
     val buffer = FrameRingBuffer()
 

@@ -19,12 +19,14 @@ import com.example.kakomirror.model.MirrorFrame
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlin.math.roundToInt
 
 class CameraMirrorController(private val context: Context) {
   private val analysisExecutor: ExecutorService = Executors.newSingleThreadExecutor()
   private var camera: Camera? = null
   private var provider: ProcessCameraProvider? = null
   private var lastFrameMillis = 0L
+  private var lightStrength = 0f
 
   fun start(
     lifecycleOwner: LifecycleOwner,
@@ -73,6 +75,7 @@ class CameraMirrorController(private val context: Context) {
 
         val selector = CameraSelector.DEFAULT_FRONT_CAMERA
         camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, analysis)
+        applyExposureBoost()
         camera?.cameraInfo?.zoomState?.value?.let { zoomState ->
           onZoomRange(zoomState.minZoomRatio, zoomState.maxZoomRatio)
           camera?.cameraControl?.setZoomRatio(initialZoomRatio.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio))
@@ -89,6 +92,11 @@ class CameraMirrorController(private val context: Context) {
     camera?.cameraControl?.setZoomRatio(ratio)
   }
 
+  fun setLightStrength(strength: Float) {
+    lightStrength = strength.coerceIn(0f, 1f)
+    applyExposureBoost()
+  }
+
   fun stop() {
     provider?.unbindAll()
     camera = null
@@ -97,6 +105,16 @@ class CameraMirrorController(private val context: Context) {
   fun shutdown() {
     stop()
     analysisExecutor.shutdown()
+  }
+
+  private fun applyExposureBoost() {
+    val boundCamera = camera ?: return
+    val exposureState = boundCamera.cameraInfo.exposureState
+    if (!exposureState.isExposureCompensationSupported) return
+    val range = exposureState.exposureCompensationRange
+    val positiveMax = range.upper.coerceAtLeast(0)
+    val targetIndex = (positiveMax * lightStrength * MAX_EXPOSURE_BOOST_FRACTION).roundToInt()
+    boundCamera.cameraControl.setExposureCompensationIndex(targetIndex.coerceIn(range.lower, range.upper))
   }
 
   private fun ImageProxy.toMirrorFrame(receivedAtMillis: Long): MirrorFrame? {
@@ -147,7 +165,8 @@ class CameraMirrorController(private val context: Context) {
   }
 
   private companion object {
-    const val FRAME_INTERVAL_MILLIS = 66L
+    const val FRAME_INTERVAL_MILLIS = 33L
     const val JPEG_QUALITY = 88
+    const val MAX_EXPOSURE_BOOST_FRACTION = 0.82f
   }
 }

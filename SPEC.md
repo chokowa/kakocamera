@@ -58,12 +58,12 @@ Known available physical test devices:
 
 - Use the front camera first.
 - Show a delayed preview based on the selected delay.
-- Delay range: 0.0 to 10.0 seconds.
+- Delay range: 0.0 to 5.0 seconds.
 - Initial delay: 5.0 seconds.
-- Target preview sampling rate: 15 fps.
+- Target preview sampling rate: 30 fps.
 - Quality: let the device provide high quality where practical; do not over-compress or over-downscale.
 - Prefer 4:3 camera analysis output with a high target size when available, because fixed 16:9 can crop front-camera field of view before the app renders the frame.
-- Keep a maximum 10-second in-memory buffer.
+- Keep a maximum 5-second in-memory buffer to reduce heat and memory pressure while preserving useful short review.
 - Do not save frames, photos, videos, or review data to persistent storage.
 - Clear the buffer when the app exits or when a new camera start begins.
 
@@ -75,6 +75,8 @@ Settings that should persist between launches:
 
 - Delay seconds.
 - Mirror flip state.
+- Display mode: full-size camera frame or fullscreen crop.
+- Whether the live and review coach marks have already been shown.
 - Pseudo flash brightness.
 - Zoom value, if technically reliable for the selected camera.
 
@@ -89,6 +91,7 @@ Controls available during live preview:
 - Stop.
 - Delay adjustment.
 - Mirror flip toggle.
+- Display mode toggle between full-size camera frame and fullscreen crop.
 - Zoom.
 - Pseudo flash brightness.
 - Buffer preview button.
@@ -110,16 +113,40 @@ Zoom:
 
 Pseudo flash:
 
-- Implement as vertical light strips on the left and right edges of the screen.
-- Do not use a full-screen white overlay for the pseudo flash.
-- Keep the light strip width stable; brightness should mainly change whiteness and glow strength.
-- Visual concept: `| preview |`, where the side bars act as light.
+- The main camera image should prefer sensor coverage with `Fit` rendering.
+- Leave any unused letterbox area black when pseudo flash is off.
+- When pseudo flash is on, brighten only the unused letterbox/background area according to the light strength.
+- Do not place a white overlay over the camera image itself.
 
 ## Start State
 
 On app launch, the screen should be dominated by a clear start button or start affordance.
 
 The UI should avoid feeling busy before camera permission and camera start.
+
+## Coach Marks
+
+Show a short first-run guide on the live screen after the camera preview is available.
+
+Live coach mark order:
+
+1. Preview: `過去が映るプレビュー画面です` / `上下の余白はライトにも使えます`
+2. Stop: `止めると、もっと前まで見返せます` / `髪や横顔を見るのに便利`
+3. Delay: `何秒前の過去を見るか選べます` / `0秒、2秒、3秒、5秒`
+4. Fullscreen: `画面いっぱいに大きく映せます` / `もう一度押すとフルサイズの画面に戻ります`
+5. Light: `押す度に上下が白く変化してライト代わりに` / `周りが暗い時に便利です`
+6. Fine controls: `細かい調整はここ` / `○で明るさ、＋でズーム`
+7. Mirror flip: `見やすい向きに切り替え` / `鏡と同じか相手からの見た目か`
+
+Show a separate first-run guide on the review screen the first time the user enters review.
+
+Review coach mark order:
+
+1. Slider: `好きな場所まで戻せます` / `止めた前後を静止画でチェック`
+2. Step buttons: `少しずつ前後に動かせます` / `長押しでも移動できます`
+3. Live: `終わったらLIVEに戻る` / `長押しで再生もできます`
+
+Coach marks should feel like light sticky-note callouts: slightly bright rose-silver cards, pale pink title text, visually quieter supporting text, small skip affordance, clear arrows, and bright target highlights sized to the actual UI element. The preview explanation should appear near the center of the preview. When a step references multiple buttons, each button should be highlighted separately instead of being enclosed by one large shared frame. The user can skip or replay the current mode guide.
 
 ## Stop And Review Behavior
 
@@ -187,6 +214,7 @@ Prefer:
 - Display the full camera frame where practical, using background fill rather than cropping the main mirror image.
 - Minimal translucent bottom controls.
 - A subtle review dial or equivalent lightweight affordance instead of a heavy editor panel.
+- Keep the review dial's play marker visually inside the semicircle in both live and review states.
 - Quiet preview-overlay sliders for zoom and pseudo-flash brightness.
 - One-handed operation.
 - No accidental horizontal overflow.
@@ -203,7 +231,7 @@ Preferred Android stack:
 Expected camera pipeline:
 
 - CameraX provides front-camera frames.
-- Frames are sampled around 15 fps into an in-memory timestamped ring buffer.
+- Frames are sampled around 30 fps into an in-memory timestamped ring buffer.
 - The live renderer selects the frame closest to `now - delay`.
 - Review mode reads from the same in-memory buffer.
 

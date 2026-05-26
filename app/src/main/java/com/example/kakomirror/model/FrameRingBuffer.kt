@@ -2,7 +2,7 @@ package com.example.kakomirror.model
 
 import kotlin.math.abs
 
-class FrameRingBuffer(private val maxDurationMillis: Long = 10_000L) {
+class FrameRingBuffer(private val maxDurationMillis: Long = 5_000L) {
   private val frames = ArrayDeque<MirrorFrame>()
 
   val size: Int

@@ -16,19 +16,25 @@ class MirrorSettingsStore(context: Context) {
   val settings: Flow<MirrorSettings> =
     appContext.settingsDataStore.data.map { preferences ->
       MirrorSettings(
-        delaySeconds = preferences[Keys.DelaySeconds] ?: 5f,
+        delaySeconds = (preferences[Keys.DelaySeconds] ?: 5f).coerceIn(0f, MAX_DELAY_SECONDS),
         mirrorFlip = preferences[Keys.MirrorFlip] ?: true,
         flashStrength = preferences[Keys.FlashStrength] ?: 0f,
         zoomRatio = preferences[Keys.ZoomRatio] ?: 1f,
+        fullscreenMirror = preferences[Keys.FullscreenMirror] ?: false,
+        liveCoachSeen = preferences[Keys.LiveCoachSeen] ?: false,
+        reviewCoachSeen = preferences[Keys.ReviewCoachSeen] ?: false,
       )
     }
 
   suspend fun save(settings: MirrorSettings) {
     appContext.settingsDataStore.edit { preferences ->
-      preferences[Keys.DelaySeconds] = settings.delaySeconds.coerceIn(0f, 10f)
+      preferences[Keys.DelaySeconds] = settings.delaySeconds.coerceIn(0f, MAX_DELAY_SECONDS)
       preferences[Keys.MirrorFlip] = settings.mirrorFlip
       preferences[Keys.FlashStrength] = settings.flashStrength.coerceIn(0f, 1f)
       preferences[Keys.ZoomRatio] = settings.zoomRatio.coerceAtLeast(1f)
+      preferences[Keys.FullscreenMirror] = settings.fullscreenMirror
+      preferences[Keys.LiveCoachSeen] = settings.liveCoachSeen
+      preferences[Keys.ReviewCoachSeen] = settings.reviewCoachSeen
     }
   }
 
@@ -37,5 +43,10 @@ class MirrorSettingsStore(context: Context) {
     val MirrorFlip = booleanPreferencesKey("mirror_flip")
     val FlashStrength = floatPreferencesKey("flash_strength")
     val ZoomRatio = floatPreferencesKey("zoom_ratio")
+    val FullscreenMirror = booleanPreferencesKey("fullscreen_mirror")
+    val LiveCoachSeen = booleanPreferencesKey("live_coach_seen")
+    val ReviewCoachSeen = booleanPreferencesKey("review_coach_seen")
   }
 }
+
+private const val MAX_DELAY_SECONDS = 5f
