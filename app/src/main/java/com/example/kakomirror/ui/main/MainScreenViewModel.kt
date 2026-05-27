@@ -275,7 +275,7 @@ enum class MirrorMode {
 
 data class MirrorUiState(
   val mode: MirrorMode = MirrorMode.Idle,
-  val delaySeconds: Float = 5f,
+  val delaySeconds: Float = 2f,
   val mirrorFlip: Boolean = true,
   val flashStrength: Float = 0f,
   val zoomRatio: Float = 1f,

@@ -8,8 +8,9 @@ This project is in an early MVP stage. Keep implementation conservative and keep
 
 1. Follow the user's latest chat instruction first.
 2. If a chat instruction changes or temporarily overrides the written spec, update `docs/CHANGELOG.md` or `SPEC.md` before or alongside implementation.
-3. Follow this repository file.
-4. Follow the global Codex rules for this machine.
+3. If the app implementation and the documents drift, treat the current app implementation as the source of truth, use the newest relevant entry in `docs/CHANGELOG.md` as supporting evidence, and update the stale documents.
+4. Follow this repository file.
+5. Follow the global Codex rules for this machine.
 
 ## Project Summary
 
@@ -25,16 +26,17 @@ The app does not save video, photos, or camera frames to storage. It keeps only 
 - Do not add login, cloud sync, server persistence, analytics, ads, or account features without approval.
 - Do not write camera frames to disk unless explicitly requested.
 - Persisting user settings is allowed and expected. This does not allow persisting camera frames, photos, videos, or review data.
+- Backup or device transfer of app settings is allowed. This does not allow backing up camera frames, photos, videos, or review data.
 - Preserve the core product goal: delayed mirror preview with short private review.
 
 ## MVP Defaults
 
 - Camera: front camera.
 - Orientation: portrait fixed.
-- Delay range: 0.0 to 10.0 seconds.
-- Initial delay: 5.0 seconds.
-- Buffer length: up to 10 seconds.
-- Preview sampling target: 15 fps.
+- Delay range: 0.0 to 5.0 seconds.
+- Initial delay: 2.0 seconds.
+- Buffer length: up to 5 seconds.
+- Preview sampling target: 30 fps.
 - Minimum Android version: Android 10.
 - Quality target: device-managed high quality, avoiding excessive downscaling.
 - Mirror mode: horizontal flip ON by default, toggleable during live preview and review.

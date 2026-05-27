@@ -16,7 +16,7 @@ class MirrorSettingsStore(context: Context) {
   val settings: Flow<MirrorSettings> =
     appContext.settingsDataStore.data.map { preferences ->
       MirrorSettings(
-        delaySeconds = (preferences[Keys.DelaySeconds] ?: 5f).coerceIn(0f, MAX_DELAY_SECONDS),
+        delaySeconds = (preferences[Keys.DelaySeconds] ?: 2f).coerceIn(0f, MAX_DELAY_SECONDS),
         mirrorFlip = preferences[Keys.MirrorFlip] ?: true,
         flashStrength = preferences[Keys.FlashStrength] ?: 0f,
         zoomRatio = preferences[Keys.ZoomRatio] ?: 1f,

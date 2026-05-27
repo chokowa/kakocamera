@@ -1,7 +1,7 @@
 package com.example.kakomirror.settings
 
 data class MirrorSettings(
-  val delaySeconds: Float = 5f,
+  val delaySeconds: Float = 2f,
   val mirrorFlip: Boolean = true,
   val flashStrength: Float = 0f,
   val zoomRatio: Float = 1f,

@@ -1,6 +1,6 @@
 # Kako Mirror MVP Specification
 
-Last updated: 2026-05-25
+Last updated: 2026-05-28
 
 ## Product
 
@@ -59,7 +59,7 @@ Known available physical test devices:
 - Use the front camera first.
 - Show a delayed preview based on the selected delay.
 - Delay range: 0.0 to 5.0 seconds.
-- Initial delay: 5.0 seconds.
+- Initial delay: 2.0 seconds.
 - Target preview sampling rate: 30 fps.
 - Quality: let the device provide high quality where practical; do not over-compress or over-downscale.
 - Prefer 4:3 camera analysis output with a high target size when available, because fixed 16:9 can crop front-camera field of view before the app renders the frame.
@@ -79,6 +79,8 @@ Settings that should persist between launches:
 - Whether the live and review coach marks have already been shown.
 - Pseudo flash brightness.
 - Zoom value, if technically reliable for the selected camera.
+
+Backup and device transfer of app settings are allowed. Camera frames, photos, videos, and review data must still remain out of persistent storage and out of backup payloads.
 
 Persisting settings does not change the no-saving rule for camera frames, photos, videos, or review data.
 
@@ -126,19 +128,18 @@ The UI should avoid feeling busy before camera permission and camera start.
 
 ## Coach Marks
 
-Show a short first-run guide on the live screen after the camera preview is available.
+Show a short first-run guide on the live screen after live mode starts, without waiting for the delayed preview buffer to finish loading. The automatic first-run guide and the top-right help replay must use the same live guide steps so new installs and replayed help never diverge.
 
 Live coach mark order:
 
-1. Preview: `過去が映るプレビュー画面です` / `上下の余白はライトにも使えます`
-2. Stop: `止めると、もっと前まで見返せます` / `髪や横顔を見るのに便利`
-3. Delay: `何秒前の過去を見るか選べます` / `0秒、2秒、3秒、5秒`
-4. Fullscreen: `画面いっぱいに大きく映せます` / `もう一度押すとフルサイズの画面に戻ります`
-5. Light: `押す度に上下が白く変化してライト代わりに` / `周りが暗い時に便利です`
-6. Fine controls: `細かい調整はここ` / `○で明るさ、＋でズーム`
-7. Mirror flip: `見やすい向きに切り替え` / `鏡と同じか相手からの見た目か`
+1. Delay: `何秒前の過去を見るか選べます` / `0秒、2秒、3秒、5秒`
+2. Mirror flip: `見やすい向きに切り替え` / `鏡と同じか相手からの見た目か`
+3. Fullscreen: `画面いっぱいに大きく映せます` / `もう一度押すとフルサイズの画面に戻ります`
+4. Light: `押す度に上下が白く変化してライト代わりに` / `周りが暗い時に便利です`
+5. Fine controls: `細かい調整はここ` / `○で明るさ、＋でズーム`
+6. Stop: `過去のミラーを見返せます` / `最大5秒前まで戻って確認できます`
 
-Show a separate first-run guide on the review screen the first time the user enters review.
+Show a separate first-run guide on the review screen the first time the user enters review. The automatic first-run guide and the top-right help replay must use the same review guide steps.
 
 Review coach mark order:
 
@@ -146,7 +147,9 @@ Review coach mark order:
 2. Step buttons: `少しずつ前後に動かせます` / `長押しでも移動できます`
 3. Live: `終わったらLIVEに戻る` / `長押しで再生もできます`
 
-Coach marks should feel like light sticky-note callouts: slightly bright rose-silver cards, pale pink title text, visually quieter supporting text, small skip affordance, clear arrows, and bright target highlights sized to the actual UI element. The preview explanation should appear near the center of the preview. When a step references multiple buttons, each button should be highlighted separately instead of being enclosed by one large shared frame. The user can skip or replay the current mode guide.
+The user can replay the current mode guide from the top-right help button. Replayed help should not contain different pages or a different order than the first-run guide.
+
+Coach marks should feel like compact rose-silver callouts with high-contrast rose titles, visually quieter supporting text, small skip affordance, clear card-edge pointers, and bright target highlights sized from the actual measured UI element. The guide card should avoid covering the target. When a step references multiple buttons, each button should be highlighted separately. The target should remain brighter than the dimmed background. The top-right help button should be hidden while a coach mark is open. Coach mark navigation and help touch targets should be at least 48dp.
 
 ## Stop And Review Behavior
 

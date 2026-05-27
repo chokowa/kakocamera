@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -19,6 +20,7 @@ import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -41,6 +43,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -50,9 +53,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -60,14 +66,25 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -79,6 +96,8 @@ import com.example.kakomirror.model.MirrorFrame
 import com.example.kakomirror.theme.KakoMirrorTheme
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
@@ -202,6 +221,7 @@ internal fun KakoMirrorScreen(
   var delayPickerOpen by remember { mutableStateOf(false) }
   var manualCoachTour by remember { mutableStateOf<CoachTour?>(null) }
   var coachStepIndex by remember { mutableStateOf(0) }
+  val coachTargets = remember(state.mode, delayPickerOpen) { mutableStateMapOf<CoachTarget, CoachTargetBounds>() }
   val currentZoomRatio by rememberUpdatedState(state.zoomRatio)
   val currentMinZoomRatio by rememberUpdatedState(state.minZoomRatio)
   val currentMaxZoomRatio by rememberUpdatedState(state.maxZoomRatio)
@@ -212,14 +232,27 @@ internal fun KakoMirrorScreen(
   }
   val automaticCoachTour =
     when {
-      state.mode == MirrorMode.Live && state.currentFrame != null && !state.liveCoachSeen -> CoachTour.Live
-      state.mode == MirrorMode.Review && !state.reviewCoachSeen -> CoachTour.Review
+      state.mode == MirrorMode.Live && !state.liveCoachSeen -> CoachTour.LiveFirstRun
+      state.mode == MirrorMode.Review && !state.reviewCoachSeen -> CoachTour.ReviewFirstRun
       else -> null
     }
   val activeCoachTour = manualCoachTour ?: automaticCoachTour
 
   LaunchedEffect(activeCoachTour) {
     coachStepIndex = 0
+    if (activeCoachTour == CoachTour.LiveFirstRun || activeCoachTour == CoachTour.LiveHelp) {
+      delayPickerOpen = false
+    }
+  }
+
+  fun finishCoachTour(tour: CoachTour) {
+    when (tour) {
+      CoachTour.LiveFirstRun -> onLiveCoachSeen()
+      CoachTour.ReviewFirstRun -> onReviewCoachSeen()
+      CoachTour.LiveHelp,
+      CoachTour.ReviewHelp -> Unit
+    }
+    manualCoachTour = null
   }
 
   Box(
@@ -272,6 +305,7 @@ internal fun KakoMirrorScreen(
         state = state,
         onFlashChange = onFlashChange,
         onZoomChange = onZoomChange,
+        coachTargets = coachTargets,
         modifier = Modifier.fillMaxSize(),
       )
     }
@@ -296,16 +330,18 @@ internal fun KakoMirrorScreen(
         onReviewSeekStep = onReviewSeekStep,
         onReviewSeekStart = onReviewSeekStart,
         onReviewSeekEnd = onReviewSeekEnd,
+        coachTargets = coachTargets,
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .navigationBarsPadding(),
       )
     }
-    if (state.mode == MirrorMode.Live || state.mode == MirrorMode.Review) {
+    if ((state.mode == MirrorMode.Live || state.mode == MirrorMode.Review) && activeCoachTour == null) {
       CoachHelpButton(
         onClick = {
-          manualCoachTour = if (state.mode == MirrorMode.Review) CoachTour.Review else CoachTour.Live
+          if (state.mode == MirrorMode.Live) delayPickerOpen = false
+          manualCoachTour = if (state.mode == MirrorMode.Review) CoachTour.ReviewHelp else CoachTour.LiveHelp
         },
         modifier =
           Modifier
@@ -317,24 +353,24 @@ internal fun KakoMirrorScreen(
     activeCoachTour?.let { tour ->
       val steps = coachStepsFor(tour)
       val step = steps[coachStepIndex.coerceIn(0, steps.lastIndex)]
-      CoachMarkOverlay(
-        step = step,
-        currentStep = coachStepIndex + 1,
-        totalSteps = steps.size,
-        onSkip = {
-          if (tour == CoachTour.Live) onLiveCoachSeen() else onReviewCoachSeen()
-          manualCoachTour = null
-        },
-        onNext = {
-          if (coachStepIndex >= steps.lastIndex) {
-            if (tour == CoachTour.Live) onLiveCoachSeen() else onReviewCoachSeen()
-            manualCoachTour = null
-          } else {
-            coachStepIndex += 1
-          }
-        },
-        modifier = Modifier.fillMaxSize(),
-      )
+      val stepTargetBounds = step.targets.mapNotNull { coachTargets[it] }
+      if (stepTargetBounds.size == step.targets.size) {
+        CoachMarkOverlay(
+          step = step,
+          targetBounds = stepTargetBounds,
+          currentStep = coachStepIndex + 1,
+          totalSteps = steps.size,
+          onSkip = { finishCoachTour(tour) },
+          onNext = {
+            if (coachStepIndex >= steps.lastIndex) {
+              finishCoachTour(tour)
+            } else {
+              coachStepIndex += 1
+            }
+          },
+          modifier = Modifier.fillMaxSize(),
+        )
+      }
     }
   }
 }
@@ -345,10 +381,16 @@ private fun CoachHelpButton(
   modifier: Modifier = Modifier,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
+  val label = stringResource(R.string.a11y_help)
   Box(
     modifier =
       modifier
-        .size(42.dp)
+        .size(48.dp)
+        .accessibleButtonSemantics(
+          label = label,
+          onClickLabel = label,
+          onClickAction = currentOnClick,
+        )
         .pointerInput(Unit) {
           awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
@@ -361,12 +403,12 @@ private fun CoachHelpButton(
     Image(
       painter = painterResource(R.drawable.ui_secondary_glass_v1),
       contentDescription = null,
-      modifier = Modifier.size(36.dp),
+      modifier = Modifier.size(40.dp),
       contentScale = ContentScale.Fit,
     )
     Text(
       text = "?",
-      color = CoachPink,
+      color = CoachRose,
       style = MaterialTheme.typography.titleMedium,
       fontWeight = FontWeight.SemiBold,
     )
@@ -376,6 +418,7 @@ private fun CoachHelpButton(
 @Composable
 private fun CoachMarkOverlay(
   step: CoachStep,
+  targetBounds: List<CoachTargetBounds>,
   currentStep: Int,
   totalSteps: Int,
   onSkip: () -> Unit,
@@ -384,7 +427,9 @@ private fun CoachMarkOverlay(
 ) {
   val currentOnSkip by rememberUpdatedState(onSkip)
   val currentOnNext by rememberUpdatedState(onNext)
-  Box(
+  val density = LocalDensity.current
+  val targetRect = unionCoachTargetBounds(targetBounds)
+  BoxWithConstraints(
     modifier =
       modifier
         .pointerInput(Unit) {
@@ -394,40 +439,64 @@ private fun CoachMarkOverlay(
           }
         },
   ) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
-      drawRect(Color.Black.copy(alpha = 0.50f))
-      drawCoachArrow(step.target, step.placement)
-      drawCoachTarget(step.target)
-    }
-    val cardModifier =
-      when (step.placement) {
-        CoachCardPlacement.Center ->
-          Modifier
-            .align(Alignment.Center)
-            .padding(horizontal = 34.dp)
-        CoachCardPlacement.AboveControls ->
-          Modifier
-            .align(Alignment.BottomCenter)
-            .padding(horizontal = 34.dp)
-            .padding(bottom = 252.dp)
-        CoachCardPlacement.AboveFineControls ->
-          Modifier
-            .align(Alignment.BottomCenter)
-            .padding(horizontal = 34.dp)
-            .padding(bottom = 252.dp)
-        CoachCardPlacement.AboveReviewControls ->
-          Modifier
-            .align(Alignment.BottomCenter)
-            .padding(horizontal = 34.dp)
-            .padding(bottom = 252.dp)
+    val cardWidth = if (maxWidth < 352.dp) maxWidth - 32.dp else 320.dp
+    var cardSize by remember(step) { mutableStateOf(IntSize.Zero) }
+    val screenWidthPx = with(density) { maxWidth.toPx() }
+    val screenHeightPx = with(density) { maxHeight.toPx() }
+    val cardWidthPx = with(density) { cardWidth.toPx() }
+    val estimatedCardHeightPx =
+      if (cardSize.height > 0) {
+        cardSize.height.toFloat()
+      } else {
+        with(density) { 142.dp.toPx() }
       }
+    val marginPx = with(density) { 16.dp.toPx() }
+    val cardX =
+      coachCardX(
+        targetRect = targetRect,
+        screenWidthPx = screenWidthPx,
+        cardWidthPx = cardWidthPx,
+        marginPx = marginPx,
+      )
+    val cardY =
+      coachCardY(
+        targetRect = targetRect,
+        screenHeightPx = screenHeightPx,
+        cardHeightPx = estimatedCardHeightPx,
+        marginPx = marginPx,
+        gapPx = with(density) { 20.dp.toPx() },
+      )
+    val cardRect = Rect(cardX, cardY, cardX + cardWidthPx, cardY + estimatedCardHeightPx)
+
+    Canvas(
+      modifier =
+        Modifier
+          .fillMaxSize()
+          .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen },
+    ) {
+      drawRect(Color.Black.copy(alpha = 0.58f))
+      targetBounds.forEach { drawCoachTargetCutout(it) }
+      if (targetRect != null && step.showArrow) {
+        if (targetBounds.size > 1) {
+          targetBounds.forEach { drawMeasuredCoachArrow(cardRect, it.rect, CoachArrowEnd.Center) }
+        } else {
+          drawMeasuredCoachArrow(cardRect, targetRect, step.arrowEnd)
+        }
+      }
+      targetBounds.forEach { drawMeasuredCoachTarget(it) }
+    }
+
     CoachCard(
       step = step,
       currentStep = currentStep,
       totalSteps = totalSteps,
       onSkip = currentOnSkip,
       onNext = currentOnNext,
-      modifier = cardModifier,
+      modifier =
+        Modifier
+          .offset { IntOffset(cardX.roundToInt(), cardY.roundToInt()) }
+          .width(cardWidth)
+          .onSizeChanged { cardSize = it },
     )
   }
 }
@@ -441,60 +510,60 @@ private fun CoachCard(
   onNext: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val cardShape = RoundedCornerShape(18.dp)
+  val cardShape = RoundedCornerShape(14.dp)
   Surface(
     modifier =
       modifier
-        .fillMaxWidth()
         .graphicsLayer {
-          shadowElevation = 14.dp.toPx()
+          shadowElevation = 10.dp.toPx()
           shape = cardShape
           clip = false
         },
     shape = cardShape,
-    color = Color(0xFFF0E8EF).copy(alpha = 0.96f),
-    border = BorderStroke(1.4.dp, CoachPink.copy(alpha = 0.70f)),
+    color = Color(0xFFFFF8FC).copy(alpha = 0.97f),
+    border = BorderStroke(1.dp, CoachRose.copy(alpha = 0.44f)),
   ) {
     Column(
-      modifier = Modifier.padding(horizontal = 18.dp, vertical = 15.dp),
-      verticalArrangement = Arrangement.spacedBy(9.dp),
+      modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
       Text(
-        text = step.title,
-        color = CoachPink,
+        text = stringResource(step.titleResId),
+        color = CoachRose,
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold,
       )
-      Surface(
-        shape = RoundedCornerShape(11.dp),
-        color = Color.White.copy(alpha = 0.54f),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.82f)),
-      ) {
-        Text(
-          text = step.body,
-          modifier = Modifier.padding(horizontal = 11.dp, vertical = 8.dp),
-          color = Color(0xFF4A4249),
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.Medium,
-        )
-      }
+      Text(
+        text = stringResource(step.bodyResId),
+        color = Color(0xFF3D343A),
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = FontWeight.Medium,
+      )
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
       ) {
-        Text(
-          text = "$currentStep/$totalSteps",
-          color = CoachPink.copy(alpha = 0.88f),
-          style = MaterialTheme.typography.labelMedium,
-          fontWeight = FontWeight.SemiBold,
-        )
+        if (totalSteps > 1) {
+          Text(
+            text = stringResource(R.string.coach_step_counter, currentStep, totalSteps),
+            color = CoachRose.copy(alpha = 0.86f),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+          )
+        } else {
+          Box(modifier = Modifier.width(1.dp))
+        }
         Row(
-          horizontalArrangement = Arrangement.spacedBy(10.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           CoachSkipButton(onClick = onSkip)
-          CoachTextButton(text = if (currentStep == totalSteps) "OK" else "次へ", primary = true, onClick = onNext)
+          CoachTextButton(
+            text = stringResource(if (currentStep == totalSteps) R.string.coach_ok else R.string.coach_next),
+            primary = true,
+            onClick = onNext,
+          )
         }
       }
     }
@@ -507,8 +576,8 @@ private fun CoachSkipButton(onClick: () -> Unit) {
   Box(
     modifier =
       Modifier
-        .height(34.dp)
-        .width(58.dp)
+        .height(48.dp)
+        .width(74.dp)
         .pointerInput(Unit) {
           awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
@@ -519,8 +588,8 @@ private fun CoachSkipButton(onClick: () -> Unit) {
     contentAlignment = Alignment.Center,
   ) {
     Text(
-      text = "スキップ",
-      color = Color(0xFF6E6069).copy(alpha = 0.76f),
+      text = stringResource(R.string.coach_skip),
+      color = Color(0xFF5F535A),
       style = MaterialTheme.typography.labelMedium,
       fontWeight = FontWeight.Medium,
     )
@@ -534,11 +603,11 @@ private fun CoachTextButton(
   onClick: () -> Unit,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
-  Box(
+  Surface(
     modifier =
       Modifier
-        .height(40.dp)
-        .width(82.dp)
+        .height(48.dp)
+        .width(76.dp)
         .pointerInput(Unit) {
           awaitEachGesture {
             awaitFirstDown(requireUnconsumed = false)
@@ -546,252 +615,284 @@ private fun CoachTextButton(
             if (up != null) currentOnClick()
           }
         },
-    contentAlignment = Alignment.Center,
+    shape = RoundedCornerShape(999.dp),
+    color = if (primary) CoachRose else Color.Transparent,
+    border = if (primary) null else BorderStroke(1.dp, CoachRose.copy(alpha = 0.44f)),
   ) {
-    Image(
-      painter = painterResource(R.drawable.ui_delay_chip_selected_v1),
-      contentDescription = null,
-      modifier = Modifier.fillMaxSize(),
-      contentScale = ContentScale.FillBounds,
-    )
-    Text(
-      text = text,
-      color = if (primary) MetalControlInk else Color.White.copy(alpha = 0.78f),
-      style = MaterialTheme.typography.labelLarge,
-      fontWeight = FontWeight.SemiBold,
-    )
-  }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCoachTarget(target: CoachTarget) {
-  val stroke = 3.dp.toPx()
-  val glow = 16.dp.toPx()
-  fun circle(center: Offset, radius: Float) {
-    drawCircle(CoachPink.copy(alpha = 0.24f), radius + glow, center, style = Stroke(width = glow))
-    drawCircle(Color.White.copy(alpha = 0.96f), radius, center, style = Stroke(width = stroke))
-    drawCircle(CoachPink.copy(alpha = 0.86f), radius + 5.dp.toPx(), center, style = Stroke(width = 1.6.dp.toPx()))
-  }
-  fun rounded(topLeft: Offset, targetSize: Size, radius: Float) {
-    drawRoundRect(
-      color = CoachPink.copy(alpha = 0.24f),
-      topLeft = Offset(topLeft.x - glow / 2f, topLeft.y - glow / 2f),
-      size = Size(targetSize.width + glow, targetSize.height + glow),
-      cornerRadius = CornerRadius(radius + glow / 2f, radius + glow / 2f),
-      style = Stroke(width = glow),
-    )
-    drawRoundRect(
-      color = Color.White.copy(alpha = 0.96f),
-      topLeft = topLeft,
-      size = targetSize,
-      cornerRadius = CornerRadius(radius, radius),
-      style = Stroke(width = stroke),
-    )
-    drawRoundRect(
-      color = CoachPink.copy(alpha = 0.82f),
-      topLeft = Offset(topLeft.x - 5.dp.toPx(), topLeft.y - 5.dp.toPx()),
-      size = Size(targetSize.width + 10.dp.toPx(), targetSize.height + 10.dp.toPx()),
-      cornerRadius = CornerRadius(radius + 5.dp.toPx(), radius + 5.dp.toPx()),
-      style = Stroke(width = 1.4.dp.toPx()),
-    )
-  }
-
-  val buttonY = size.height - 112.dp.toPx()
-  val fineY = size.height - (PreviewFineControlBottomGap + 21.dp).toPx()
-  val centerX = size.width / 2f
-  when (target) {
-    CoachTarget.Preview ->
-      rounded(
-        topLeft = Offset(18.dp.toPx(), NativeCameraTopGap.toPx() + 14.dp.toPx()),
-        targetSize = Size(size.width - 36.dp.toPx(), size.height * 0.56f),
-        radius = 22.dp.toPx(),
+    Box(contentAlignment = Alignment.Center) {
+      Text(
+        text = text,
+        color = if (primary) Color.White else CoachRose,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
       )
-    CoachTarget.Stop -> circle(Offset(centerX, buttonY), 56.dp.toPx())
-    CoachTarget.Delay -> circle(Offset(centerX + BottomInnerControlOffset.toPx(), buttonY), 41.dp.toPx())
-    CoachTarget.DisplayMode -> circle(Offset(centerX - BottomInnerControlOffset.toPx(), buttonY), 41.dp.toPx())
-    CoachTarget.Light -> circle(Offset(centerX - BottomOuterControlOffset.toPx(), buttonY), 41.dp.toPx())
-    CoachTarget.FineControls -> {
-      circle(Offset(43.dp.toPx(), fineY), 30.dp.toPx())
-      circle(Offset(size.width - 43.dp.toPx(), fineY), 30.dp.toPx())
     }
-    CoachTarget.Flip -> circle(Offset(size.width - 49.dp.toPx(), buttonY), 41.dp.toPx())
-    CoachTarget.ReviewSlider ->
-      rounded(
-        topLeft = Offset(58.dp.toPx(), fineY - 42.dp.toPx()),
-        targetSize = Size(size.width - 116.dp.toPx(), 88.dp.toPx()),
-        radius = 34.dp.toPx(),
-      )
-    CoachTarget.ReviewStep -> {
-      circle(Offset(centerX - 70.dp.toPx(), buttonY), 42.dp.toPx())
-      circle(Offset(centerX + 70.dp.toPx(), buttonY), 42.dp.toPx())
-    }
-    CoachTarget.Live -> circle(Offset(centerX, buttonY), 58.dp.toPx())
-  }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCoachArrow(
-  target: CoachTarget,
-  placement: CoachCardPlacement,
-) {
-  val targetPoints = coachTargetAnchors(target)
-  val startPoint =
-    when (placement) {
-      CoachCardPlacement.Center -> Offset(size.width / 2f, size.height / 2f + 86.dp.toPx())
-      CoachCardPlacement.AboveControls -> Offset(size.width / 2f, size.height - 252.dp.toPx())
-      CoachCardPlacement.AboveFineControls -> Offset(size.width / 2f, size.height - 252.dp.toPx())
-      CoachCardPlacement.AboveReviewControls -> Offset(size.width / 2f, size.height - 252.dp.toPx())
-    }
-  targetPoints.forEach { targetPoint ->
-    drawLine(
-      color = CoachPink.copy(alpha = 0.94f),
-      start = startPoint,
-      end = targetPoint,
-      strokeWidth = 3.dp.toPx(),
-      cap = StrokeCap.Round,
-    )
-    val angle = kotlin.math.atan2(targetPoint.y - startPoint.y, targetPoint.x - startPoint.x)
-    val arrowLength = 15.dp.toPx()
-    val wing = 0.62f
-    val left =
-      Offset(
-        x = targetPoint.x - arrowLength * kotlin.math.cos(angle - wing),
-        y = targetPoint.y - arrowLength * kotlin.math.sin(angle - wing),
-      )
-    val right =
-      Offset(
-        x = targetPoint.x - arrowLength * kotlin.math.cos(angle + wing),
-        y = targetPoint.y - arrowLength * kotlin.math.sin(angle + wing),
-      )
-    drawLine(CoachPink.copy(alpha = 0.94f), targetPoint, left, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
-    drawLine(CoachPink.copy(alpha = 0.94f), targetPoint, right, strokeWidth = 3.dp.toPx(), cap = StrokeCap.Round)
-  }
-}
-
-private fun androidx.compose.ui.graphics.drawscope.DrawScope.coachTargetAnchors(target: CoachTarget): List<Offset> {
-  val buttonY = size.height - 112.dp.toPx()
-  val fineY = size.height - (PreviewFineControlBottomGap + 21.dp).toPx()
-  val centerX = size.width / 2f
-  return when (target) {
-    CoachTarget.Preview -> listOf(Offset(centerX, NativeCameraTopGap.toPx() + size.height * 0.34f))
-    CoachTarget.Stop -> listOf(Offset(centerX, buttonY - 56.dp.toPx()))
-    CoachTarget.Delay -> listOf(Offset(centerX + BottomInnerControlOffset.toPx(), buttonY - 42.dp.toPx()))
-    CoachTarget.DisplayMode -> listOf(Offset(centerX - BottomInnerControlOffset.toPx(), buttonY - 42.dp.toPx()))
-    CoachTarget.Light -> listOf(Offset(centerX - BottomOuterControlOffset.toPx(), buttonY - 42.dp.toPx()))
-    CoachTarget.FineControls ->
-      listOf(
-        Offset(43.dp.toPx(), fineY - 30.dp.toPx()),
-        Offset(size.width - 43.dp.toPx(), fineY - 30.dp.toPx()),
-      )
-    CoachTarget.Flip -> listOf(Offset(size.width - 49.dp.toPx(), buttonY - 42.dp.toPx()))
-    CoachTarget.ReviewSlider -> listOf(Offset(centerX, fineY - 46.dp.toPx()))
-    CoachTarget.ReviewStep ->
-      listOf(
-        Offset(centerX - 70.dp.toPx(), buttonY - 46.dp.toPx()),
-        Offset(centerX + 70.dp.toPx(), buttonY - 46.dp.toPx()),
-      )
-    CoachTarget.Live -> listOf(Offset(centerX, buttonY - 58.dp.toPx()))
   }
 }
 
 private fun coachStepsFor(tour: CoachTour): List<CoachStep> =
   when (tour) {
-    CoachTour.Live ->
-      listOf(
-        CoachStep(
-          target = CoachTarget.Preview,
-          title = "過去が映るプレビュー画面です",
-          body = "上下の余白はライトにも使えます",
-          placement = CoachCardPlacement.Center,
-        ),
-        CoachStep(
-          target = CoachTarget.Stop,
-          title = "止めると、もっと前まで見返せます",
-          body = "髪や横顔を見るのに便利",
-          placement = CoachCardPlacement.AboveControls,
-        ),
-        CoachStep(
-          target = CoachTarget.Delay,
-          title = "何秒前の過去を見るか選べます",
-          body = "0秒、2秒、3秒、5秒",
-          placement = CoachCardPlacement.AboveControls,
-        ),
-        CoachStep(
-          target = CoachTarget.DisplayMode,
-          title = "画面いっぱいに大きく映せます",
-          body = "もう一度押すとフルサイズの画面に戻ります",
-          placement = CoachCardPlacement.AboveControls,
-        ),
-        CoachStep(
-          target = CoachTarget.Light,
-          title = "押す度に上下が白く変化してライト代わりに",
-          body = "周りが暗い時に便利です",
-          placement = CoachCardPlacement.AboveControls,
-        ),
-        CoachStep(
-          target = CoachTarget.FineControls,
-          title = "細かい調整はここ",
-          body = "○で明るさ、＋でズーム",
-          placement = CoachCardPlacement.AboveFineControls,
-        ),
-        CoachStep(
-          target = CoachTarget.Flip,
-          title = "見やすい向きに切り替え",
-          body = "鏡と同じか相手からの見た目か",
-          placement = CoachCardPlacement.AboveControls,
-        ),
-      )
-    CoachTour.Review ->
-      listOf(
-        CoachStep(
-          target = CoachTarget.ReviewSlider,
-          title = "好きな場所まで戻せます",
-          body = "止めた前後を静止画でチェック",
-          placement = CoachCardPlacement.AboveFineControls,
-        ),
-        CoachStep(
-          target = CoachTarget.ReviewStep,
-          title = "少しずつ前後に動かせます",
-          body = "長押しでも移動できます",
-          placement = CoachCardPlacement.AboveReviewControls,
-        ),
-        CoachStep(
-          target = CoachTarget.Live,
-          title = "終わったらLIVEに戻る",
-          body = "長押しで再生もできます",
-          placement = CoachCardPlacement.AboveReviewControls,
-        ),
-      )
+    CoachTour.LiveFirstRun,
+    CoachTour.LiveHelp -> liveCoachSteps()
+    CoachTour.ReviewFirstRun,
+    CoachTour.ReviewHelp -> reviewCoachSteps()
   }
 
+private fun liveCoachSteps(): List<CoachStep> =
+  listOf(
+    CoachStep(
+      targets = listOf(CoachTarget.Delay),
+      titleResId = R.string.coach_live_delay_title,
+      bodyResId = R.string.coach_live_delay_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.Flip),
+      titleResId = R.string.coach_live_flip_title,
+      bodyResId = R.string.coach_live_flip_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.DisplayMode),
+      titleResId = R.string.coach_live_display_title,
+      bodyResId = R.string.coach_live_display_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.Light),
+      titleResId = R.string.coach_live_light_title,
+      bodyResId = R.string.coach_live_light_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.FineLight, CoachTarget.FineZoom),
+      titleResId = R.string.coach_live_fine_title,
+      bodyResId = R.string.coach_live_fine_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.Stop),
+      titleResId = R.string.coach_live_stop_title,
+      bodyResId = R.string.coach_live_stop_body,
+    ),
+  )
+
+private fun reviewCoachSteps(): List<CoachStep> =
+  listOf(
+    CoachStep(
+      targets = listOf(CoachTarget.ReviewSlider),
+      titleResId = R.string.coach_review_slider_title,
+      bodyResId = R.string.coach_review_slider_body,
+      arrowEnd = CoachArrowEnd.TargetEdge,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.ReviewBack, CoachTarget.ReviewForward),
+      titleResId = R.string.coach_review_step_title,
+      bodyResId = R.string.coach_review_step_body,
+    ),
+    CoachStep(
+      targets = listOf(CoachTarget.Live),
+      titleResId = R.string.coach_review_live_title,
+      bodyResId = R.string.coach_review_live_body,
+    ),
+  )
+
 private data class CoachStep(
-  val target: CoachTarget,
-  val title: String,
-  val body: String,
-  val placement: CoachCardPlacement,
+  val targets: List<CoachTarget>,
+  @param:StringRes val titleResId: Int,
+  @param:StringRes val bodyResId: Int,
+  val showArrow: Boolean = true,
+  val arrowEnd: CoachArrowEnd = CoachArrowEnd.Center,
 )
 
+private enum class CoachArrowEnd {
+  Center,
+  TargetEdge,
+}
+
 private enum class CoachTour {
-  Live,
-  Review,
+  LiveFirstRun,
+  LiveHelp,
+  ReviewFirstRun,
+  ReviewHelp,
 }
 
 private enum class CoachTarget {
-  Preview,
   Stop,
   Delay,
   DisplayMode,
   Light,
-  FineControls,
+  FineLight,
+  FineZoom,
   Flip,
   ReviewSlider,
-  ReviewStep,
+  ReviewBack,
+  ReviewForward,
   Live,
 }
 
-private enum class CoachCardPlacement {
-  Center,
-  AboveControls,
-  AboveFineControls,
-  AboveReviewControls,
+private data class CoachTargetBounds(
+  val rect: Rect,
+  val shape: CoachTargetShape,
+)
+
+private enum class CoachTargetShape {
+  Circle,
+  Rounded,
+}
+
+private fun Modifier.coachTarget(
+  target: CoachTarget,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
+  shape: CoachTargetShape = CoachTargetShape.Circle,
+): Modifier =
+  onGloballyPositioned { coordinates ->
+    val rect = coordinates.boundsInRoot()
+    if (rect.width > 0f && rect.height > 0f) {
+      coachTargets[target] = CoachTargetBounds(rect = rect, shape = shape)
+    }
+  }
+
+private fun unionCoachTargetBounds(bounds: List<CoachTargetBounds>): Rect? {
+  if (bounds.isEmpty()) return null
+  return bounds
+    .drop(1)
+    .fold(bounds.first().rect) { acc, next ->
+      Rect(
+        left = minOf(acc.left, next.rect.left),
+        top = minOf(acc.top, next.rect.top),
+        right = maxOf(acc.right, next.rect.right),
+        bottom = maxOf(acc.bottom, next.rect.bottom),
+      )
+    }
+}
+
+private fun coachCardX(
+  targetRect: Rect?,
+  screenWidthPx: Float,
+  cardWidthPx: Float,
+  marginPx: Float,
+): Float {
+  val preferred = (targetRect?.center?.x ?: screenWidthPx / 2f) - cardWidthPx / 2f
+  val maxX = (screenWidthPx - cardWidthPx - marginPx).coerceAtLeast(marginPx)
+  return preferred.coerceIn(marginPx, maxX)
+}
+
+private fun coachCardY(
+  targetRect: Rect?,
+  screenHeightPx: Float,
+  cardHeightPx: Float,
+  marginPx: Float,
+  gapPx: Float,
+): Float {
+  if (targetRect == null) return (screenHeightPx - cardHeightPx) / 2f
+  val preferred =
+    if (targetRect.center.y > screenHeightPx * 0.50f) {
+      targetRect.top - cardHeightPx - gapPx
+    } else {
+      targetRect.bottom + gapPx
+    }
+  val maxY = (screenHeightPx - cardHeightPx - marginPx).coerceAtLeast(marginPx)
+  return preferred.coerceIn(marginPx, maxY)
+}
+
+private fun paddedRect(rect: Rect, padding: Float): Rect =
+  Rect(
+    left = rect.left - padding,
+    top = rect.top - padding,
+    right = rect.right + padding,
+    bottom = rect.bottom + padding,
+  )
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawCoachTargetCutout(bounds: CoachTargetBounds) {
+  val padding = 10.dp.toPx()
+  val rect = paddedRect(bounds.rect, padding)
+  when (bounds.shape) {
+    CoachTargetShape.Circle -> {
+      val radius = max(rect.width, rect.height) / 2f
+      drawCircle(
+        color = Color.Transparent,
+        radius = radius,
+        center = rect.center,
+        blendMode = BlendMode.Clear,
+      )
+    }
+    CoachTargetShape.Rounded -> {
+      drawRoundRect(
+        color = Color.Transparent,
+        topLeft = Offset(rect.left, rect.top),
+        size = Size(rect.width, rect.height),
+        cornerRadius = CornerRadius(22.dp.toPx(), 22.dp.toPx()),
+        blendMode = BlendMode.Clear,
+      )
+    }
+  }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMeasuredCoachTarget(bounds: CoachTargetBounds) {
+  val padding = 10.dp.toPx()
+  val rect = paddedRect(bounds.rect, padding)
+  val stroke = 2.2.dp.toPx()
+  val glow = 9.dp.toPx()
+  when (bounds.shape) {
+    CoachTargetShape.Circle -> {
+      val radius = max(rect.width, rect.height) / 2f
+      drawCircle(CoachRose.copy(alpha = 0.22f), radius + glow, rect.center, style = Stroke(width = glow))
+      drawCircle(Color.White.copy(alpha = 0.96f), radius, rect.center, style = Stroke(width = stroke))
+      drawCircle(CoachRose.copy(alpha = 0.86f), radius + 4.dp.toPx(), rect.center, style = Stroke(width = 1.3.dp.toPx()))
+    }
+    CoachTargetShape.Rounded -> {
+      val corner = 22.dp.toPx()
+      drawRoundRect(
+        color = CoachRose.copy(alpha = 0.20f),
+        topLeft = Offset(rect.left - glow / 2f, rect.top - glow / 2f),
+        size = Size(rect.width + glow, rect.height + glow),
+        cornerRadius = CornerRadius(corner + glow / 2f, corner + glow / 2f),
+        style = Stroke(width = glow),
+      )
+      drawRoundRect(
+        color = Color.White.copy(alpha = 0.96f),
+        topLeft = Offset(rect.left, rect.top),
+        size = Size(rect.width, rect.height),
+        cornerRadius = CornerRadius(corner, corner),
+        style = Stroke(width = stroke),
+      )
+      drawRoundRect(
+        color = CoachRose.copy(alpha = 0.86f),
+        topLeft = Offset(rect.left - 4.dp.toPx(), rect.top - 4.dp.toPx()),
+        size = Size(rect.width + 8.dp.toPx(), rect.height + 8.dp.toPx()),
+        cornerRadius = CornerRadius(corner + 4.dp.toPx(), corner + 4.dp.toPx()),
+        style = Stroke(width = 1.3.dp.toPx()),
+      )
+    }
+  }
+}
+
+private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMeasuredCoachArrow(
+  cardRect: Rect,
+  targetRect: Rect,
+  arrowEnd: CoachArrowEnd,
+) {
+  val targetPoint =
+    when (arrowEnd) {
+      CoachArrowEnd.Center -> targetRect.center
+      CoachArrowEnd.TargetEdge -> {
+        if (cardRect.center.y < targetRect.center.y) {
+          Offset(targetRect.center.x, targetRect.top)
+        } else {
+          Offset(targetRect.center.x, targetRect.bottom)
+        }
+      }
+    }
+  val startPoint =
+    when {
+      targetPoint.y >= cardRect.bottom -> Offset(targetPoint.x.coerceIn(cardRect.left + 22.dp.toPx(), cardRect.right - 22.dp.toPx()), cardRect.bottom)
+      targetPoint.y <= cardRect.top -> Offset(targetPoint.x.coerceIn(cardRect.left + 22.dp.toPx(), cardRect.right - 22.dp.toPx()), cardRect.top)
+      targetPoint.x < cardRect.left -> Offset(cardRect.left, targetPoint.y.coerceIn(cardRect.top + 22.dp.toPx(), cardRect.bottom - 22.dp.toPx()))
+      else -> Offset(cardRect.right, targetPoint.y.coerceIn(cardRect.top + 22.dp.toPx(), cardRect.bottom - 22.dp.toPx()))
+    }
+  drawLine(
+    color = CoachRose.copy(alpha = 0.92f),
+    start = startPoint,
+    end = targetPoint,
+    strokeWidth = 2.3.dp.toPx(),
+    cap = StrokeCap.Round,
+  )
 }
 
 @Composable
@@ -863,7 +964,7 @@ private fun DelayLoadingOverlay(
       }
     }
     if (remainingSeconds != null) {
-      ReadableOverlayText(formatOneDecimal(remainingSeconds) + "s")
+      ReadableOverlayText(formatDecimalSecondsLabel(remainingSeconds))
     }
   }
 }
@@ -874,6 +975,12 @@ private fun StartPanel(
   onStart: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val startLabel =
+    if (hasCameraPermission) {
+      stringResource(R.string.start)
+    } else {
+      stringResource(R.string.allow_camera)
+    }
   Column(
     modifier = modifier.padding(horizontal = 28.dp),
     horizontalAlignment = Alignment.CenterHorizontally,
@@ -898,6 +1005,7 @@ private fun StartPanel(
       onHoldStart = {},
       onHoldEnd = {},
       text = if (hasCameraPermission) stringResource(R.string.start_casual) else stringResource(R.string.allow_camera),
+      accessibilityLabel = startLabel,
       modifier = Modifier.padding(top = 6.dp),
     )
     Text(
@@ -925,6 +1033,7 @@ private fun ControlPanel(
   onReviewSeekStep: (Float) -> Unit,
   onReviewSeekStart: (Float) -> Unit,
   onReviewSeekEnd: () -> Unit,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
   modifier: Modifier = Modifier,
 ) {
   val isReview = state.mode == MirrorMode.Review
@@ -943,6 +1052,7 @@ private fun ControlPanel(
             .align(Alignment.TopCenter)
             .padding(horizontal = 62.dp)
             .offset(y = (-18).dp),
+        coachTargets = coachTargets,
       )
       RoundIconButton(
         icon = ControlIcon.Rewind,
@@ -951,12 +1061,15 @@ private fun ControlPanel(
         holdEnabled = true,
         onHoldStart = { onReviewSeekStart(-1f) },
         onHoldEnd = onReviewSeekEnd,
-        stepText = "${formatOneDecimal(REVIEW_SEEK_TAP_SECONDS)}s",
+        stepText = formatDecimalSecondsLabel(REVIEW_SEEK_TAP_SECONDS),
+        accessibilityLabel = stringResource(R.string.a11y_seek_back, formatDecimalSecondsLabel(REVIEW_SEEK_TAP_SECONDS)),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .offset(x = -BottomInnerControlOffset)
             .padding(bottom = 30.dp),
+        coachTarget = CoachTarget.ReviewBack,
+        coachTargets = coachTargets,
       )
       RoundIconButton(
         icon = ControlIcon.FastForward,
@@ -965,21 +1078,28 @@ private fun ControlPanel(
         holdEnabled = true,
         onHoldStart = { onReviewSeekStart(1f) },
         onHoldEnd = onReviewSeekEnd,
-        stepText = "${formatOneDecimal(REVIEW_SEEK_TAP_SECONDS)}s",
+        stepText = formatDecimalSecondsLabel(REVIEW_SEEK_TAP_SECONDS),
+        accessibilityLabel = stringResource(R.string.a11y_seek_forward, formatDecimalSecondsLabel(REVIEW_SEEK_TAP_SECONDS)),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .offset(x = BottomInnerControlOffset)
             .padding(bottom = 30.dp),
+        coachTarget = CoachTarget.ReviewForward,
+        coachTargets = coachTargets,
       )
       RoundIconButton(
         icon = ControlIcon.Flip,
         active = state.mirrorFlip,
         onClick = onMirrorToggle,
+        accessibilityLabel = stringResource(R.string.mirror_flip),
+        accessibilityState = if (state.mirrorFlip) stringResource(R.string.a11y_flip_mirror_view) else stringResource(R.string.a11y_flip_other_view),
         modifier =
           Modifier
             .align(Alignment.BottomEnd)
             .padding(end = 20.dp, bottom = 30.dp),
+        coachTarget = CoachTarget.Flip,
+        coachTargets = coachTargets,
       )
     } else {
       if (delayPickerOpen) {
@@ -999,38 +1119,51 @@ private fun ControlPanel(
         onClick = { onFlashChange(nextLightStrength(state.flashStrength)) },
         holdEnabled = true,
         onHoldStart = { onFlashChange(0f) },
+        accessibilityLabel = stringResource(R.string.light),
+        accessibilityState = if (state.flashStrength > 0.05f) stringResource(R.string.a11y_on) else stringResource(R.string.a11y_off),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .offset(x = -BottomOuterControlOffset)
             .padding(bottom = 30.dp),
+        coachTarget = CoachTarget.Light,
+        coachTargets = coachTargets,
       )
       DisplayModeButton(
         fullscreenMirror = state.fullscreenMirror,
         onClick = onFullscreenToggle,
+        accessibilityLabel = stringResource(R.string.a11y_display_mode),
+        accessibilityState = if (state.fullscreenMirror) stringResource(R.string.fullscreen) else stringResource(R.string.full_size),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .offset(x = -BottomInnerControlOffset)
             .padding(bottom = 30.dp),
+        coachTargets = coachTargets,
       )
       DelayPresetButton(
         delaySeconds = state.delaySeconds,
         onClick = onDelayPickerToggle,
+        accessibilityLabel = stringResource(R.string.a11y_delay_button, state.delaySeconds.toInt()),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
             .offset(x = BottomInnerControlOffset)
             .padding(bottom = 30.dp),
+        coachTargets = coachTargets,
       )
       RoundIconButton(
         icon = ControlIcon.Flip,
         active = state.mirrorFlip,
         onClick = onMirrorToggle,
+        accessibilityLabel = stringResource(R.string.mirror_flip),
+        accessibilityState = if (state.mirrorFlip) stringResource(R.string.a11y_flip_mirror_view) else stringResource(R.string.a11y_flip_other_view),
         modifier =
           Modifier
             .align(Alignment.BottomEnd)
             .padding(end = 20.dp, bottom = 30.dp),
+        coachTarget = CoachTarget.Flip,
+        coachTargets = coachTargets,
       )
     }
     PrimaryActionButton(
@@ -1040,36 +1173,14 @@ private fun ControlPanel(
       holdEnabled = isReview,
       onHoldStart = onReviewPlayStart,
       onHoldEnd = onReviewPlayEnd,
-      text = if (isReview) "LIVE" else null,
+      text = if (isReview) stringResource(R.string.live_mode) else null,
+      accessibilityLabel = if (isReview) stringResource(R.string.a11y_return_live) else stringResource(R.string.a11y_stop_to_review),
       modifier =
         Modifier
           .align(Alignment.BottomCenter)
           .padding(bottom = 19.dp),
-    )
-  }
-}
-
-@Composable
-private fun DelayMirrorButtons(
-  delaySeconds: Float,
-  mirrorActive: Boolean,
-  onDelayClick: () -> Unit,
-  onMirrorClick: () -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Row(
-    modifier = modifier,
-    horizontalArrangement = Arrangement.spacedBy(12.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    DelayPresetButton(
-      delaySeconds = delaySeconds,
-      onClick = onDelayClick,
-    )
-    RoundIconButton(
-      icon = ControlIcon.Flip,
-      active = mirrorActive,
-      onClick = onMirrorClick,
+      coachTarget = if (isReview) CoachTarget.Live else CoachTarget.Stop,
+      coachTargets = coachTargets,
     )
   }
 }
@@ -1144,7 +1255,7 @@ private fun DelayChoiceChip(
       contentScale = ContentScale.Fit,
     )
     Text(
-      text = formatDelayPreset(seconds),
+      text = formatDelayPresetLabel(seconds),
       color = if (selected) Color(0xFF2E333A) else Color.White.copy(alpha = 0.88f),
       style = MaterialTheme.typography.labelLarge,
       fontWeight = FontWeight.SemiBold,
@@ -1156,12 +1267,16 @@ private fun DelayChoiceChip(
 private fun ReviewTransport(
   state: MirrorUiState,
   onReviewPositionChange: (Float) -> Unit,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
   modifier: Modifier = Modifier,
 ) {
   val hasRange = state.reviewMaxSeconds > state.reviewMinSeconds
   val totalSeconds = (state.reviewMaxSeconds - state.reviewMinSeconds).coerceAtLeast(0f)
   Column(
-    modifier = modifier.fillMaxWidth(),
+    modifier =
+      modifier
+        .fillMaxWidth()
+        .coachTarget(CoachTarget.ReviewSlider, coachTargets, CoachTargetShape.Rounded),
     verticalArrangement = Arrangement.spacedBy(0.dp),
   ) {
     Box(
@@ -1238,9 +1353,15 @@ private fun ReviewTransport(
       horizontalArrangement = Arrangement.SpaceBetween,
       verticalAlignment = Alignment.CenterVertically,
     ) {
-      TimelineTimeText(formatSignedSeconds(state.reviewMinSeconds))
-      TimelineTimeText("${formatSignedSeconds(state.reviewPositionSeconds)} / ${formatOneDecimal(totalSeconds)}s")
-      TimelineTimeText(formatSignedSeconds(state.reviewMaxSeconds))
+      TimelineTimeText(formatSignedSecondsLabel(state.reviewMinSeconds))
+      TimelineTimeText(
+        stringResource(
+          R.string.review_position_and_total_format,
+          formatSignedSecondsLabel(state.reviewPositionSeconds),
+          formatDecimalSecondsLabel(totalSeconds),
+        ),
+      )
+      TimelineTimeText(formatSignedSecondsLabel(state.reviewMaxSeconds))
     }
   }
 }
@@ -1278,6 +1399,9 @@ private fun PrimaryActionButton(
   onHoldEnd: () -> Unit,
   modifier: Modifier = Modifier,
   text: String? = null,
+  accessibilityLabel: String,
+  coachTarget: CoachTarget? = null,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
   val currentOnHoldStart by rememberUpdatedState(onHoldStart)
@@ -1287,6 +1411,12 @@ private fun PrimaryActionButton(
     modifier =
       modifier
         .size(84.dp)
+        .then(if (coachTarget != null && coachTargets != null) Modifier.coachTarget(coachTarget, coachTargets) else Modifier)
+        .accessibleButtonSemantics(
+          label = accessibilityLabel,
+          onClickLabel = accessibilityLabel,
+          onClickAction = currentOnClick,
+        )
         .graphicsLayer {
           scaleX = if (active) 0.97f else 1f
           scaleY = if (active) 0.97f else 1f
@@ -1404,6 +1534,10 @@ private fun RoundIconButton(
   onHoldStart: () -> Unit = {},
   onHoldEnd: () -> Unit = {},
   stepText: String? = null,
+  accessibilityLabel: String,
+  accessibilityState: String? = null,
+  coachTarget: CoachTarget? = null,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
   val currentOnHoldStart by rememberUpdatedState(onHoldStart)
@@ -1413,6 +1547,13 @@ private fun RoundIconButton(
     modifier =
       modifier
         .size(58.dp)
+        .then(if (coachTarget != null && coachTargets != null) Modifier.coachTarget(coachTarget, coachTargets) else Modifier)
+        .accessibleButtonSemantics(
+          label = accessibilityLabel,
+          stateLabel = accessibilityState,
+          onClickLabel = accessibilityLabel,
+          onClickAction = currentOnClick,
+        )
         .graphicsLayer {
           shadowElevation = 8.dp.toPx()
           shape = CircleShape
@@ -1478,7 +1619,9 @@ private fun RoundIconButton(
 private fun DelayPresetButton(
   delaySeconds: Float,
   onClick: () -> Unit,
+  accessibilityLabel: String,
   modifier: Modifier = Modifier,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
 
@@ -1486,6 +1629,12 @@ private fun DelayPresetButton(
     modifier =
       modifier
         .size(58.dp)
+        .then(if (coachTargets != null) Modifier.coachTarget(CoachTarget.Delay, coachTargets) else Modifier)
+        .accessibleButtonSemantics(
+          label = accessibilityLabel,
+          onClickLabel = accessibilityLabel,
+          onClickAction = currentOnClick,
+        )
         .graphicsLayer {
           shadowElevation = 8.dp.toPx()
           shape = CircleShape
@@ -1514,7 +1663,7 @@ private fun DelayPresetButton(
         contentScale = ContentScale.Fit,
       )
       Text(
-        text = formatDelayPreset(delaySeconds),
+        text = formatDelayPresetLabel(delaySeconds),
         color = MetalControlInk,
         style = MaterialTheme.typography.labelLarge,
         fontWeight = FontWeight.SemiBold,
@@ -1527,7 +1676,10 @@ private fun DelayPresetButton(
 private fun DisplayModeButton(
   fullscreenMirror: Boolean,
   onClick: () -> Unit,
+  accessibilityLabel: String,
+  accessibilityState: String,
   modifier: Modifier = Modifier,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
 
@@ -1535,6 +1687,13 @@ private fun DisplayModeButton(
     modifier =
       modifier
         .size(58.dp)
+        .then(if (coachTargets != null) Modifier.coachTarget(CoachTarget.DisplayMode, coachTargets) else Modifier)
+        .accessibleButtonSemantics(
+          label = accessibilityLabel,
+          stateLabel = accessibilityState,
+          onClickLabel = accessibilityLabel,
+          onClickAction = currentOnClick,
+        )
         .graphicsLayer {
           shadowElevation = 8.dp.toPx()
           shape = CircleShape
@@ -1662,9 +1821,12 @@ private fun PreviewSliders(
   state: MirrorUiState,
   onFlashChange: (Float) -> Unit,
   onZoomChange: (Float) -> Unit,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
   modifier: Modifier = Modifier,
 ) {
   var activeSlider by remember { mutableStateOf<PreviewSliderKind?>(null) }
+  val expandedState = stringResource(R.string.a11y_expanded)
+  val collapsedState = stringResource(R.string.a11y_collapsed)
   Box(modifier) {
     LiveFineControlRail(
       modifier =
@@ -1680,10 +1842,14 @@ private fun PreviewSliders(
       onValueChange = onFlashChange,
       symbol = "○",
       expanded = activeSlider == PreviewSliderKind.Light,
+      accessibilityLabel = stringResource(R.string.a11y_brightness_control),
+      accessibilityState = if (activeSlider == PreviewSliderKind.Light) expandedState else collapsedState,
       onLabelClick = {
         activeSlider =
           if (activeSlider == PreviewSliderKind.Light) null else PreviewSliderKind.Light
       },
+      coachTarget = CoachTarget.FineLight,
+      coachTargets = coachTargets,
       modifier =
         Modifier
           .align(Alignment.CenterStart)
@@ -1695,10 +1861,14 @@ private fun PreviewSliders(
       onValueChange = onZoomChange,
       symbol = "+",
       expanded = activeSlider == PreviewSliderKind.Zoom,
+      accessibilityLabel = stringResource(R.string.a11y_zoom_control),
+      accessibilityState = if (activeSlider == PreviewSliderKind.Zoom) expandedState else collapsedState,
       onLabelClick = {
         activeSlider =
           if (activeSlider == PreviewSliderKind.Zoom) null else PreviewSliderKind.Zoom
       },
+      coachTarget = CoachTarget.FineZoom,
+      coachTargets = coachTargets,
       modifier =
         Modifier
           .align(Alignment.CenterEnd)
@@ -1735,7 +1905,11 @@ private fun FloatingVerticalSlider(
   onValueChange: (Float) -> Unit,
   symbol: String,
   expanded: Boolean,
+  accessibilityLabel: String,
+  accessibilityState: String,
   onLabelClick: () -> Unit,
+  coachTarget: CoachTarget,
+  coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
   modifier: Modifier = Modifier,
 ) {
   val density = LocalDensity.current
@@ -1840,6 +2014,13 @@ private fun FloatingVerticalSlider(
         Modifier
           .width(50.dp)
           .height(42.dp)
+          .coachTarget(coachTarget, coachTargets)
+          .accessibleButtonSemantics(
+            label = accessibilityLabel,
+            stateLabel = accessibilityState,
+            onClickLabel = accessibilityLabel,
+            onClickAction = currentOnLabelClick,
+          )
           .pointerInput(Unit) {
             awaitEachGesture {
               awaitFirstDown(requireUnconsumed = false)
@@ -1870,14 +2051,49 @@ private enum class PreviewSliderKind {
   Zoom,
 }
 
-private fun formatOneDecimal(value: Float): String = String.format(Locale.JAPAN, "%.1f", value)
+private fun formatOneDecimal(value: Float): String = String.format(Locale.getDefault(), "%.1f", value)
 
-private fun formatDelayPreset(value: Float): String = "${value.toInt()}s"
+private fun Modifier.accessibleButtonSemantics(
+  label: String,
+  stateLabel: String? = null,
+  onClickLabel: String? = null,
+  onClickAction: (() -> Unit)? = null,
+  onLongClickLabel: String? = null,
+  onLongClickAction: (() -> Unit)? = null,
+): Modifier =
+  semantics(mergeDescendants = true) {
+    role = Role.Button
+    contentDescription = label
+    if (stateLabel != null) {
+      stateDescription = stateLabel
+    }
+    if (onClickAction != null) {
+      onClick(label = onClickLabel) {
+        onClickAction()
+        true
+      }
+    }
+    if (onLongClickAction != null) {
+      onLongClick(label = onLongClickLabel) {
+        onLongClickAction()
+        true
+      }
+    }
+  }
 
-private fun formatSignedSeconds(value: Float): String {
+@Composable
+private fun formatDecimalSecondsLabel(value: Float): String =
+  stringResource(R.string.seconds_decimal_format, formatOneDecimal(value))
+
+@Composable
+private fun formatDelayPresetLabel(value: Float): String =
+  stringResource(R.string.delay_preset_format, value.toInt())
+
+@Composable
+private fun formatSignedSecondsLabel(value: Float): String {
   val normalized = if (abs(value) < 0.05f) 0f else value
   val prefix = if (normalized > 0f) "+" else if (normalized < 0f) "-" else ""
-  return "$prefix${formatOneDecimal(abs(normalized))}s"
+  return stringResource(R.string.signed_seconds_format, prefix, formatOneDecimal(abs(normalized)))
 }
 
 private fun timelineFraction(state: MirrorUiState): Float {
@@ -1904,7 +2120,7 @@ private val PreviewFineControlBottomGap = 172.dp
 private val BottomInnerControlOffset = 78.dp
 private val BottomOuterControlOffset = 142.dp
 private val MetalControlInk = Color(0xFF242A31)
-private val CoachPink = Color(0xFFFF78B7)
+private val CoachRose = Color(0xFFA62463)
 private fun letterboxLightColor(strength: Float): Color {
   val alpha = (strength.coerceIn(0f, 1f) * 0.9f)
   return Color.White.copy(alpha = alpha)

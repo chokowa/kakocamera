@@ -2,8 +2,23 @@
 
 This file records user-approved product and implementation direction changes, including temporary overrides.
 
+## 2026-05-28
+
+- Clarified that when repository documents lag behind shipped app behavior, the current app implementation should be treated as the source of truth and stale docs should be updated to match it.
+- Allowed backup and device transfer for app settings only. Camera frames, photos, videos, and review data remain excluded from persistent storage and backup payloads.
+- Started localization groundwork by moving remaining visible UI copy toward string resources instead of leaving it hardcoded in UI code.
+- Added an initial `values-en` string set so the app now has an English localization base to build on.
+- Polished the first English copy pass to read more naturally in live and review coach marks.
+- Added localized accessibility labels and button semantics to the custom help, action, transport, delay, display-mode, flip, brightness, and zoom controls.
+
 ## 2026-05-27
 
+- Changed the live stop coach-mark copy to describe reviewing the past mirror instead of saying the user should stop something.
+- Changed first-run default delay from 5 seconds to 2 seconds.
+- Changed live first-run coach marks to begin as soon as live mode starts instead of waiting for the delayed preview buffer to finish loading.
+- Changed first-run live/review coach marks to reuse the same step lists as the top-right help replay, preventing fresh installs from showing an older shortened guide.
+- Reordered the shared live coach-mark guide so delay comes first, mirror direction follows, visual aids stay in the middle, and stop/review appears last as the mode-changing action.
+- Rebuilt coach marks around measured UI target bounds, spotlight cutouts, compact high-contrast rose callouts, card-edge pointers, and 48dp coach/help touch targets.
 - Refined coach marks from dark glass panels into brighter sticky-note-style callouts with paler pink titles, clearer title/body contrast, smaller skip text, arrows, and more precise target highlights.
 - Changed multi-control coach marks so separate buttons are highlighted individually instead of being enclosed by one large shared frame.
 - Added first-run coach marks for the live and review screens, using black glass cards, vivid magenta titles, subtle silver target rings, skip/next controls, and a small top-right help button for replay.

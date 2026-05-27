@@ -8,9 +8,9 @@ The Android MVP is planned first. iPhone support is planned later.
 
 ## Core Idea
 
-The app shows the front camera preview after a user-configurable delay. Although the product name references 5 seconds, users can adjust the delay from 0.0 to 10.0 seconds.
+The app shows the front camera preview after a user-configurable delay. The current Android app supports 0.0 to 5.0 seconds, with 2.0 seconds as the initial delay.
 
-The app does not save captured frames. It only keeps a short in-memory buffer so the user can review recent moments after stopping the camera.
+The app does not save captured frames. It only keeps a short in-memory buffer, currently up to 5 seconds, so the user can review recent moments after stopping the camera.
 
 ## Current Status
 
