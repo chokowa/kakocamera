@@ -2,6 +2,12 @@
 
 This file records user-approved product and implementation direction changes, including temporary overrides.
 
+## 2026-05-29 (v1.4 - Code 4)
+
+- Fixed coach mark (tutorial) overlay persistence issue by implementing immediate saves for discrete settings (skip tutorial, toggle mirror/fullscreen/stabilization, delay preset change) and ensuring disk writes run inside a `NonCancellable` context to prevent settings data loss on immediate app exit.
+- Bumped `versionCode` to 4 and `versionName` to `"1.4"` for the closed testing release.
+- Tracked and committed `app-ads.txt` to the source repository for hosting configuration alignment.
+
 ## 2026-05-28
 
 - Added a new live coach mark step (step 6 of 7) highlighting the stabilization toggle and explaining how it locks target frame rate to reduce motion blur in dark places, updating the SPEC and string resources accordingly.

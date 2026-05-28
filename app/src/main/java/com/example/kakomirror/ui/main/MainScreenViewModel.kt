@@ -39,9 +39,11 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
               } else {
                 settings.zoomRatio.coerceAtLeast(MIN_ZOOM_RATIO)
               },
+            stabilizationEnabled = settings.stabilizationEnabled,
             fullscreenMirror = settings.fullscreenMirror,
             liveCoachSeen = settings.liveCoachSeen,
             reviewCoachSeen = settings.reviewCoachSeen,
+            adsRemoved = settings.adsRemoved,
           )
         }
       }
@@ -201,39 +203,54 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
           it.bufferSeconds < requiredBufferSecondsFor(next)
       it.copy(delaySeconds = next, currentFrame = if (waitingForDelay) null else it.currentFrame)
     }
-    saveSettings()
+    saveSettings(immediate = true)
   }
 
   fun toggleMirror() {
     _uiState.update { it.copy(mirrorFlip = !it.mirrorFlip) }
-    saveSettings()
+    saveSettings(immediate = true)
   }
 
   fun toggleFullscreenMirror() {
     _uiState.update { it.copy(fullscreenMirror = !it.fullscreenMirror) }
-    saveSettings()
+    saveSettings(immediate = true)
+  }
+
+  fun toggleStabilization() {
+    val liveSession = _uiState.value.mode == MirrorMode.Live
+    if (liveSession) {
+      buffer.clear()
+    }
+    _uiState.update {
+      it.copy(
+        stabilizationEnabled = !it.stabilizationEnabled,
+        currentFrame = if (liveSession) null else it.currentFrame,
+        bufferSeconds = if (liveSession) 0f else it.bufferSeconds,
+      )
+    }
+    saveSettings(immediate = true)
   }
 
   fun markLiveCoachSeen() {
     if (_uiState.value.liveCoachSeen) return
     _uiState.update { it.copy(liveCoachSeen = true) }
-    saveSettings()
+    saveSettings(immediate = true)
   }
 
   fun markReviewCoachSeen() {
     if (_uiState.value.reviewCoachSeen) return
     _uiState.update { it.copy(reviewCoachSeen = true) }
-    saveSettings()
+    saveSettings(immediate = true)
   }
 
   fun setFlash(strength: Float) {
     _uiState.update { it.copy(flashStrength = strength.coerceIn(0f, 1f)) }
-    saveSettings()
+    saveSettings(immediate = false)
   }
 
   fun setZoom(ratio: Float) {
     _uiState.update { it.copy(zoomRatio = ratio.coerceIn(it.minZoomRatio, it.maxZoomRatio)) }
-    saveSettings()
+    saveSettings(immediate = false)
   }
 
   fun setZoomRange(min: Float, max: Float) {
@@ -249,26 +266,56 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
     }
   }
 
+  fun setAdsRemoved(removed: Boolean) {
+    _uiState.update { it.copy(adsRemoved = removed) }
+    saveSettings(immediate = true)
+  }
+
+  fun setStabilizationSupported(supported: Boolean) {
+    _uiState.update { it.copy(stabilizationSupported = supported) }
+  }
+
   fun showError(message: String) {
     _uiState.update { it.copy(errorMessage = message) }
   }
 
-  private fun saveSettings() {
-    val state = _uiState.value
+  private fun saveSettings(immediate: Boolean = false) {
     settingsSaveJob?.cancel()
-    settingsSaveJob = viewModelScope.launch {
-      delay(180L)
-      settingsStore.save(
-        MirrorSettings(
-          delaySeconds = state.delaySeconds,
-          mirrorFlip = state.mirrorFlip,
-          flashStrength = state.flashStrength,
-          zoomRatio = state.zoomRatio,
-          fullscreenMirror = state.fullscreenMirror,
-          liveCoachSeen = state.liveCoachSeen,
-          reviewCoachSeen = state.reviewCoachSeen,
-        ),
-      )
+    if (immediate) {
+      viewModelScope.launch {
+        val state = _uiState.value
+        settingsStore.save(
+          MirrorSettings(
+            delaySeconds = state.delaySeconds,
+            mirrorFlip = state.mirrorFlip,
+            flashStrength = state.flashStrength,
+            zoomRatio = state.zoomRatio,
+            stabilizationEnabled = state.stabilizationEnabled,
+            fullscreenMirror = state.fullscreenMirror,
+            liveCoachSeen = state.liveCoachSeen,
+            reviewCoachSeen = state.reviewCoachSeen,
+            adsRemoved = state.adsRemoved,
+          ),
+        )
+      }
+    } else {
+      settingsSaveJob = viewModelScope.launch {
+        delay(180L)
+        val state = _uiState.value
+        settingsStore.save(
+          MirrorSettings(
+            delaySeconds = state.delaySeconds,
+            mirrorFlip = state.mirrorFlip,
+            flashStrength = state.flashStrength,
+            zoomRatio = state.zoomRatio,
+            stabilizationEnabled = state.stabilizationEnabled,
+            fullscreenMirror = state.fullscreenMirror,
+            liveCoachSeen = state.liveCoachSeen,
+            reviewCoachSeen = state.reviewCoachSeen,
+            adsRemoved = state.adsRemoved,
+          ),
+        )
+      }
     }
   }
 }
@@ -285,6 +332,8 @@ data class MirrorUiState(
   val mirrorFlip: Boolean = true,
   val flashStrength: Float = 0f,
   val zoomRatio: Float = 1f,
+  val stabilizationEnabled: Boolean = true,
+  val stabilizationSupported: Boolean = false,
   val fullscreenMirror: Boolean = false,
   val liveCoachSeen: Boolean = false,
   val reviewCoachSeen: Boolean = false,
@@ -298,6 +347,7 @@ data class MirrorUiState(
   val reviewMaxSeconds: Float = 0f,
   val isPlaying: Boolean = false,
   val errorMessage: String? = null,
+  val adsRemoved: Boolean = false,
 ) {
   val canReview: Boolean = bufferSeconds >= 1f && mode == MirrorMode.Live
 }

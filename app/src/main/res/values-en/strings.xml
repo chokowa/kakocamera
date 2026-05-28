@@ -33,7 +33,7 @@
     <string name="coach_live_delay_title">Choose how far back to look</string>
     <string name="coach_live_delay_body">0, 2, 3, or 5 seconds</string>
     <string name="coach_live_flip_title">Switch to the easier view</string>
-    <string name="coach_live_flip_body">Mirror view or how others see you</string>
+    <string name="coach_live_flip_body">Mirror view or the way others see you</string>
     <string name="coach_live_display_title">Make the mirror fill the screen</string>
     <string name="coach_live_display_body">Tap again to return to the full-size frame</string>
     <string name="coach_live_light_title">Use a bright frame to light the area around you</string>
@@ -41,7 +41,7 @@
     <string name="coach_live_fine_title">Fine controls are here</string>
     <string name="coach_live_fine_body">Circle opens brightness, plus opens zoom</string>
     <string name="coach_live_stabilization_title">Reduce blur in dark places</string>
-    <string name="coach_live_stabilization_body">Turn on to lock the frame rate and physically reduce motion blur</string>
+    <string name="coach_live_stabilization_body">Smooths and reduces blur. If too dark, turn it off</string>
     <string name="coach_live_stop_title">Review the delayed mirror</string>
     <string name="coach_live_stop_body">Go back up to 5 seconds and check it</string>
     <string name="coach_review_slider_title">Scrub to the moment you want</string>
@@ -70,4 +70,7 @@
     <string name="a11y_zoom_control">Zoom control</string>
     <string name="a11y_expanded">Expanded</string>
     <string name="a11y_collapsed">Collapsed</string>
+    <string name="remove_ads">Remove Ads</string>
+    <string name="buy_premium">Ad-Free</string>
+    <string name="a11y_remove_ads">Purchase ad-removal</string>
 </resources>

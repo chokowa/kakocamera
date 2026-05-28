@@ -5,7 +5,9 @@ data class MirrorSettings(
   val mirrorFlip: Boolean = true,
   val flashStrength: Float = 0f,
   val zoomRatio: Float = 1f,
+  val stabilizationEnabled: Boolean = true,
   val fullscreenMirror: Boolean = false,
   val liveCoachSeen: Boolean = false,
   val reviewCoachSeen: Boolean = false,
+  val adsRemoved: Boolean = false,
 )

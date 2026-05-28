@@ -33,7 +33,7 @@
     <string name="coach_live_delay_title">何秒前の過去を見るか選べます</string>
     <string name="coach_live_delay_body">0秒、2秒、3秒、5秒</string>
     <string name="coach_live_flip_title">見やすい向きに切り替え</string>
-    <string name="coach_live_flip_body">鏡と同じか相手からの見た目か</string>
+    <string name="coach_live_flip_body">鏡と同じ見え方か、相手から見える向きにするか</string>
     <string name="coach_live_display_title">画面いっぱいに大きく映せます</string>
     <string name="coach_live_display_body">もう一度押すとフルサイズの画面に戻ります</string>
     <string name="coach_live_light_title">光るフレームでまわりを明るくできます</string>
@@ -41,7 +41,7 @@
     <string name="coach_live_fine_title">細かい調整はここ</string>
     <string name="coach_live_fine_body">○で明るさ、＋でズーム</string>
     <string name="coach_live_stabilization_title">暗い場所でのブレを抑える</string>
-    <string name="coach_live_stabilization_body">オンにするとフレームレートを固定してブレを減らします</string>
+    <string name="coach_live_stabilization_body">なめらかに映りブレを抑えますが、画面が暗く感じるときはオフがおすすめです</string>
     <string name="coach_live_stop_title">過去のミラーを見返せます</string>
     <string name="coach_live_stop_body">最大5秒前まで戻って確認できます</string>
     <string name="coach_review_slider_title">好きな場所まで戻せます</string>
@@ -70,4 +70,7 @@
     <string name="a11y_zoom_control">ズーム調整</string>
     <string name="a11y_expanded">開いています</string>
     <string name="a11y_collapsed">閉じています</string>
+    <string name="remove_ads">広告非表示</string>
+    <string name="buy_premium">広告消去</string>
+    <string name="a11y_remove_ads">広告非表示の購入</string>
 </resources>

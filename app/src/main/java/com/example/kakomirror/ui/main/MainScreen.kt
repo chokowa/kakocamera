@@ -95,10 +95,12 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.sp
 import com.example.kakomirror.R
 import com.example.kakomirror.camera.CameraMirrorController
 import com.example.kakomirror.model.MirrorFrame
 import com.example.kakomirror.theme.KakoMirrorTheme
+import com.example.kakomirror.ui.ads.AdBanner
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
@@ -110,6 +112,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 fun MainScreen(
   modifier: Modifier = Modifier,
   viewModel: MainScreenViewModel = viewModel(),
+  onRemoveAdsClick: () -> Unit = {},
 ) {
   val context = LocalContext.current
   val lifecycleOwner = LocalLifecycleOwner.current
@@ -219,6 +222,7 @@ fun MainScreen(
     onReviewSeekEnd = viewModel::stopReviewSeek,
     onLiveCoachSeen = viewModel::markLiveCoachSeen,
     onReviewCoachSeen = viewModel::markReviewCoachSeen,
+    onRemoveAdsClick = onRemoveAdsClick,
   )
 }
 
@@ -243,6 +247,7 @@ internal fun KakoMirrorScreen(
   onReviewSeekEnd: () -> Unit = {},
   onLiveCoachSeen: () -> Unit = {},
   onReviewCoachSeen: () -> Unit = {},
+  onRemoveAdsClick: () -> Unit = {},
 ) {
   var delayPickerOpen by remember { mutableStateOf(false) }
   var manualCoachTour by remember { mutableStateOf<CoachTour?>(null) }
@@ -353,6 +358,24 @@ internal fun KakoMirrorScreen(
             .navigationBarsPadding(),
       )
     }
+    if (state.mode != MirrorMode.Idle && !state.adsRemoved) {
+      AdBanner(
+        modifier = Modifier
+          .align(Alignment.TopCenter)
+          .padding(top = NativeCameraTopGap + 6.dp)
+      )
+    }
+
+    if ((state.mode == MirrorMode.Live || state.mode == MirrorMode.Review) && activeCoachTour == null && !state.adsRemoved) {
+      BuyPremiumButton(
+        onClick = onRemoveAdsClick,
+        modifier =
+          Modifier
+            .align(Alignment.TopStart)
+            .padding(top = helpButtonTopPadding, start = HelpButtonEndPadding),
+      )
+    }
+
     if ((state.mode == MirrorMode.Live || state.mode == MirrorMode.Review) && activeCoachTour == null) {
       CoachHelpButton(
         onClick = {
@@ -400,7 +423,7 @@ private fun CoachHelpButton(
   Box(
     modifier =
       modifier
-        .size(HelpButtonTouchSize)
+        .size(48.dp)
         .accessibleButtonSemantics(
           label = label,
           onClickLabel = label,
@@ -416,17 +439,68 @@ private fun CoachHelpButton(
     contentAlignment = Alignment.Center,
   ) {
     Image(
-      painter = painterResource(R.drawable.ui_secondary_glass_v1),
+      painter = painterResource(R.drawable.ic_help_circle_gold),
       contentDescription = null,
-      modifier = Modifier.size(HelpButtonVisualSize),
+      modifier = Modifier.size(36.dp),
       contentScale = ContentScale.Fit,
     )
-    Text(
-      text = "?",
-      color = CoachRose,
-      style = MaterialTheme.typography.titleMedium,
-      fontWeight = FontWeight.SemiBold,
+  }
+}
+
+@Composable
+private fun BuyPremiumButton(
+  onClick: () -> Unit,
+  modifier: Modifier = Modifier,
+) {
+  val currentOnClick by rememberUpdatedState(onClick)
+  val label = stringResource(R.string.a11y_remove_ads)
+  Box(
+    modifier =
+      modifier
+        .width(110.dp)
+        .height(48.dp)
+        .accessibleButtonSemantics(
+          label = label,
+          onClickLabel = label,
+          onClickAction = currentOnClick,
+        )
+        .pointerInput(Unit) {
+          awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            val up = waitForUpOrCancellation()
+            if (up != null) currentOnClick()
+          }
+        },
+    contentAlignment = Alignment.Center,
+  ) {
+    Image(
+      painter = painterResource(R.drawable.bg_pill_gold_crown),
+      contentDescription = null,
+      modifier = Modifier.size(width = 100.dp, height = 36.dp),
+      contentScale = ContentScale.FillBounds,
     )
+    Box(
+      modifier = Modifier
+        .size(width = 100.dp, height = 36.dp)
+        .padding(start = 32.dp, end = 8.dp),
+      contentAlignment = Alignment.Center,
+    ) {
+      Text(
+        text = stringResource(R.string.buy_premium),
+        color = Color.Black,
+        style = MaterialTheme.typography.labelMedium.copy(
+          fontSize = 12.sp,
+          fontWeight = FontWeight.ExtraBold,
+          shadow = Shadow(
+            color = Color.White.copy(alpha = 0.8f),
+            offset = Offset(0f, 2f),
+            blurRadius = 2f
+          )
+        ),
+        modifier = Modifier.offset(y = 2.dp),
+        maxLines = 1,
+      )
+    }
   }
 }
 
@@ -2119,7 +2193,7 @@ private fun StabilizationToggle(
   visualHeight: Dp,
 ) {
   val currentOnToggle by rememberUpdatedState(onToggle)
-  val knobInset = 3.dp
+  val knobInset = 1.5.dp
   val knobSize = visualHeight - (knobInset * 2f)
   val knobTravel = (visualWidth - knobSize - (knobInset * 2f)).coerceAtLeast(0.dp)
   val knobOffset by
@@ -2275,10 +2349,10 @@ private fun PreviewSliders(
   var activeSlider by remember { mutableStateOf<PreviewSliderKind?>(null) }
   val expandedState = stringResource(R.string.a11y_expanded)
   val collapsedState = stringResource(R.string.a11y_collapsed)
-  val stabilizationTouchWidth = 60.dp
-  val stabilizationTouchHeight = 40.dp
-  val stabilizationVisualWidth = 54.dp
-  val stabilizationVisualHeight = 24.dp
+  val stabilizationTouchWidth = 64.dp
+  val stabilizationTouchHeight = 44.dp
+  val stabilizationVisualWidth = 60.dp
+  val stabilizationVisualHeight = 30.dp
   Box(modifier) {
     LiveFineControlRail(
       modifier =

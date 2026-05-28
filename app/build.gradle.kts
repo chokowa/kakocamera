@@ -7,16 +7,26 @@ android {
     namespace = "com.example.kakomirror"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.kakomirror"
+        applicationId = "com.simpleseries.kakomirror"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "1.4"
+    }
+
+    signingConfigs {
+        create("release") {
+            storeFile = file("kakomirror-release.jks")
+            storePassword = "kakomirror123"
+            keyAlias = "kakomirror"
+            keyPassword = "kakomirror123"
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -64,6 +74,8 @@ dependencies {
   implementation(libs.androidx.camera.core)
   implementation(libs.androidx.camera.lifecycle)
   implementation(libs.androidx.datastore.preferences)
+  implementation(libs.androidx.play.services.ads)
+  implementation(libs.play.billing.ktx)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
   // Instrumented tests
