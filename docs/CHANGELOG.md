@@ -4,6 +4,13 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-28
 
+- Changed zoom-in above 1.0 to use display-side enlargement with drag panning, while keeping sub-1.0 zoom-out on devices whose front camera exposes a wider minimum ratio.
+- Allowed sub-1.0 zoom ratios to persist and restore on devices whose front camera reports zoom-out support, while still clamping back to the device minimum on hardware that bottoms out at 1.0.
+- Removed the review-only bitmap scaling so the preview screen keeps the same framing and spare margins as LIVE unless the display mode itself changes.
+- Kept the full-size mirror letterbox geometry unchanged and clamped only the top-right help button upward when needed so it stays inside the existing black safe area on devices with taller status bars.
+- Added compact and tiny width fallbacks for the bottom controls and delay presets so fixed control slots keep their relative positions on normal phones but clamp instead of overlapping on narrower displays.
+- Replaced the old pseudo-flash background behavior with a light-frame mode: full-size uses the existing spare margins as the light area, while fullscreen pulls the camera image slightly inward to expose a thin lit frame without covering the preview.
+- Added top and bottom safety shading so the help button, fine sliders, and bottom controls stay readable while the light frame is active.
 - Clarified that when repository documents lag behind shipped app behavior, the current app implementation should be treated as the source of truth and stale docs should be updated to match it.
 - Allowed backup and device transfer for app settings only. Camera frames, photos, videos, and review data remain excluded from persistent storage and backup payloads.
 - Started localization groundwork by moving remaining visible UI copy toward string resources instead of leaving it hardcoded in UI code.

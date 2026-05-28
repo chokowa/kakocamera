@@ -19,7 +19,7 @@ class MirrorSettingsStore(context: Context) {
         delaySeconds = (preferences[Keys.DelaySeconds] ?: 2f).coerceIn(0f, MAX_DELAY_SECONDS),
         mirrorFlip = preferences[Keys.MirrorFlip] ?: true,
         flashStrength = preferences[Keys.FlashStrength] ?: 0f,
-        zoomRatio = preferences[Keys.ZoomRatio] ?: 1f,
+        zoomRatio = (preferences[Keys.ZoomRatio] ?: 1f).coerceAtLeast(MIN_ZOOM_RATIO),
         fullscreenMirror = preferences[Keys.FullscreenMirror] ?: false,
         liveCoachSeen = preferences[Keys.LiveCoachSeen] ?: false,
         reviewCoachSeen = preferences[Keys.ReviewCoachSeen] ?: false,
@@ -31,7 +31,7 @@ class MirrorSettingsStore(context: Context) {
       preferences[Keys.DelaySeconds] = settings.delaySeconds.coerceIn(0f, MAX_DELAY_SECONDS)
       preferences[Keys.MirrorFlip] = settings.mirrorFlip
       preferences[Keys.FlashStrength] = settings.flashStrength.coerceIn(0f, 1f)
-      preferences[Keys.ZoomRatio] = settings.zoomRatio.coerceAtLeast(1f)
+      preferences[Keys.ZoomRatio] = settings.zoomRatio.coerceAtLeast(MIN_ZOOM_RATIO)
       preferences[Keys.FullscreenMirror] = settings.fullscreenMirror
       preferences[Keys.LiveCoachSeen] = settings.liveCoachSeen
       preferences[Keys.ReviewCoachSeen] = settings.reviewCoachSeen
@@ -50,3 +50,4 @@ class MirrorSettingsStore(context: Context) {
 }
 
 private const val MAX_DELAY_SECONDS = 5f
+private const val MIN_ZOOM_RATIO = 0.1f

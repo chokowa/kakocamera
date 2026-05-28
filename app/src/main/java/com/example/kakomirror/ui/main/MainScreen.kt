@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -31,7 +32,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -85,6 +87,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -97,6 +100,7 @@ import com.example.kakomirror.theme.KakoMirrorTheme
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -122,11 +126,10 @@ fun MainScreen(
     viewModel.startLive()
     controller.start(
       lifecycleOwner = lifecycleOwner,
-      initialZoomRatio = state.zoomRatio,
+      initialZoomRatio = cameraZoomRatio(state.zoomRatio, state.minZoomRatio, state.maxZoomRatio),
       onFrame = viewModel::onFrame,
       onZoomRange = viewModel::setZoomRange,
     )
-    controller.setZoomRatio(state.zoomRatio)
     controller.setLightStrength(state.flashStrength)
   }
 
@@ -148,8 +151,8 @@ fun MainScreen(
   }
 
   LaunchedEffect(state.zoomRatio, state.mode) {
-    if (state.mode == MirrorMode.Live) {
-      controller.setZoomRatio(state.zoomRatio)
+    if (state.mode == MirrorMode.Live && state.zoomRangeResolved) {
+      controller.setZoomRatio(cameraZoomRatio(state.zoomRatio, state.minZoomRatio, state.maxZoomRatio))
     }
   }
 
@@ -222,10 +225,6 @@ internal fun KakoMirrorScreen(
   var manualCoachTour by remember { mutableStateOf<CoachTour?>(null) }
   var coachStepIndex by remember { mutableStateOf(0) }
   val coachTargets = remember(state.mode, delayPickerOpen) { mutableStateMapOf<CoachTarget, CoachTargetBounds>() }
-  val currentZoomRatio by rememberUpdatedState(state.zoomRatio)
-  val currentMinZoomRatio by rememberUpdatedState(state.minZoomRatio)
-  val currentMaxZoomRatio by rememberUpdatedState(state.maxZoomRatio)
-  val currentOnZoomChange by rememberUpdatedState(onZoomChange)
 
   LaunchedEffect(state.mode) {
     if (state.mode != MirrorMode.Live) delayPickerOpen = false
@@ -235,8 +234,9 @@ internal fun KakoMirrorScreen(
       state.mode == MirrorMode.Live && !state.liveCoachSeen -> CoachTour.LiveFirstRun
       state.mode == MirrorMode.Review && !state.reviewCoachSeen -> CoachTour.ReviewFirstRun
       else -> null
-    }
+  }
   val activeCoachTour = manualCoachTour ?: automaticCoachTour
+  val helpButtonTopPadding = helpButtonTopPadding()
 
   LaunchedEffect(activeCoachTour) {
     coachStepIndex = 0
@@ -259,24 +259,15 @@ internal fun KakoMirrorScreen(
     modifier =
       modifier
         .fillMaxSize()
-        .background(Color.Black)
-        .pointerInput(Unit) {
-          var gestureZoomRatio = currentZoomRatio
-          detectTransformGestures { _, _, zoom, _ ->
-            if (zoom == 1f) return@detectTransformGestures
-            if (abs(gestureZoomRatio - currentZoomRatio) > 0.2f) {
-              gestureZoomRatio = currentZoomRatio
-            }
-            gestureZoomRatio =
-              (gestureZoomRatio * zoom).coerceIn(currentMinZoomRatio, currentMaxZoomRatio)
-            currentOnZoomChange(gestureZoomRatio)
-          }
-        },
+        .background(Color.Black),
   ) {
     FramePreview(
       frame = state.currentFrame,
       mirrorFlip = state.mirrorFlip,
-      reviewZoom = if (state.mode == MirrorMode.Review) state.zoomRatio else 1f,
+      zoomRatio = state.zoomRatio,
+      minZoomRatio = state.minZoomRatio,
+      maxZoomRatio = state.maxZoomRatio,
+      onZoomChange = onZoomChange,
       flashStrength = state.flashStrength,
       fullscreenMirror = state.fullscreenMirror,
       modifier = Modifier.fillMaxSize(),
@@ -346,8 +337,7 @@ internal fun KakoMirrorScreen(
         modifier =
           Modifier
             .align(Alignment.TopEnd)
-            .statusBarsPadding()
-            .padding(top = 8.dp, end = 18.dp),
+            .padding(top = helpButtonTopPadding, end = HelpButtonEndPadding),
       )
     }
     activeCoachTour?.let { tour ->
@@ -385,7 +375,7 @@ private fun CoachHelpButton(
   Box(
     modifier =
       modifier
-        .size(48.dp)
+        .size(HelpButtonTouchSize)
         .accessibleButtonSemantics(
           label = label,
           onClickLabel = label,
@@ -403,7 +393,7 @@ private fun CoachHelpButton(
     Image(
       painter = painterResource(R.drawable.ui_secondary_glass_v1),
       contentDescription = null,
-      modifier = Modifier.size(40.dp),
+      modifier = Modifier.size(HelpButtonVisualSize),
       contentScale = ContentScale.Fit,
     )
     Text(
@@ -899,7 +889,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawMeasuredCoachAr
 private fun FramePreview(
   frame: MirrorFrame?,
   mirrorFlip: Boolean,
-  reviewZoom: Float,
+  zoomRatio: Float,
+  minZoomRatio: Float,
+  maxZoomRatio: Float,
+  onZoomChange: (Float) -> Unit,
   flashStrength: Float,
   fullscreenMirror: Boolean,
   modifier: Modifier = Modifier,
@@ -910,8 +903,109 @@ private fun FramePreview(
   }
 
   val bitmap = remember(frame, mirrorFlip) { frame.toDisplayBitmap(mirrorFlip) }
+  val currentZoomRatio by rememberUpdatedState(zoomRatio)
+  val currentMinZoomRatio by rememberUpdatedState(minZoomRatio)
+  val currentMaxZoomRatio by rememberUpdatedState(maxZoomRatio)
+  val currentOnZoomChange by rememberUpdatedState(onZoomChange)
+  val density = LocalDensity.current
+  val lightActive = flashStrength > LightActiveThreshold
+  val fullscreenLightHorizontalPadding = 12.dp + (14.dp * flashStrength.coerceIn(0f, 1f))
+  val fullscreenLightTopPadding = 10.dp + (12.dp * flashStrength.coerceIn(0f, 1f))
+  val fullscreenLightBottomPadding = 14.dp + (16.dp * flashStrength.coerceIn(0f, 1f))
+  val displayZoom = displayZoomRatio(zoomRatio)
+  val horizontalPaddingPx =
+    with(density) {
+      if (fullscreenMirror && lightActive) {
+        fullscreenLightHorizontalPadding.toPx()
+      } else {
+        0f
+      }
+    }
+  val topPaddingPx =
+    with(density) {
+      when {
+        fullscreenMirror && lightActive -> fullscreenLightTopPadding.toPx()
+        fullscreenMirror -> 0f
+        else -> NativeCameraTopGap.toPx()
+      }
+    }
+  val bottomPaddingPx =
+    with(density) {
+      if (fullscreenMirror && lightActive) {
+        fullscreenLightBottomPadding.toPx()
+      } else {
+        0f
+      }
+    }
+  var previewSize by remember { mutableStateOf(IntSize.Zero) }
+  var panOffset by remember(fullscreenMirror) { mutableStateOf(Offset.Zero) }
+
+  LaunchedEffect(
+    displayZoom,
+    fullscreenMirror,
+    lightActive,
+    previewSize,
+    bitmap.width,
+    bitmap.height,
+  ) {
+    panOffset =
+      if (displayZoom <= 1f) {
+        Offset.Zero
+      } else {
+        clampPreviewPan(
+          desiredOffset = panOffset,
+          previewSize = previewSize,
+          bitmapWidth = bitmap.width,
+          bitmapHeight = bitmap.height,
+          displayZoom = displayZoom,
+          fullscreenMirror = fullscreenMirror,
+          horizontalPaddingPx = horizontalPaddingPx,
+          topPaddingPx = topPaddingPx,
+          bottomPaddingPx = bottomPaddingPx,
+        )
+      }
+  }
+
   Box(
-    modifier.background(letterboxLightColor(flashStrength)),
+    modifier =
+      modifier
+        .background(if (lightActive) lightFrameColor(flashStrength) else Color.Black)
+        .onSizeChanged { previewSize = it }
+        .pointerInput(fullscreenMirror, lightActive, previewSize) {
+          var gestureZoomRatio = currentZoomRatio
+          detectTransformGestures { _, pan, zoom, _ ->
+            if (abs(gestureZoomRatio - currentZoomRatio) > 0.2f) {
+              gestureZoomRatio = currentZoomRatio
+            }
+            val nextZoomRatio =
+              if (zoom == 1f) {
+                gestureZoomRatio
+              } else {
+                (gestureZoomRatio * zoom).coerceIn(currentMinZoomRatio, currentMaxZoomRatio)
+              }
+            if (nextZoomRatio != gestureZoomRatio) {
+              gestureZoomRatio = nextZoomRatio
+              currentOnZoomChange(nextZoomRatio)
+            }
+            val activeDisplayZoom = displayZoomRatio(nextZoomRatio)
+            panOffset =
+              if (activeDisplayZoom <= 1f) {
+                Offset.Zero
+              } else {
+                clampPreviewPan(
+                  desiredOffset = panOffset + pan,
+                  previewSize = previewSize,
+                  bitmapWidth = bitmap.width,
+                  bitmapHeight = bitmap.height,
+                  displayZoom = activeDisplayZoom,
+                  fullscreenMirror = fullscreenMirror,
+                  horizontalPaddingPx = horizontalPaddingPx,
+                  topPaddingPx = topPaddingPx,
+                  bottomPaddingPx = bottomPaddingPx,
+                )
+              }
+          }
+        },
     contentAlignment = Alignment.Center,
   ) {
     Image(
@@ -920,14 +1014,41 @@ private fun FramePreview(
       modifier =
         Modifier
           .fillMaxSize()
-          .then(if (fullscreenMirror) Modifier else Modifier.padding(top = NativeCameraTopGap))
+          .then(
+            when {
+              fullscreenMirror && lightActive ->
+                Modifier.padding(
+                  start = fullscreenLightHorizontalPadding,
+                  end = fullscreenLightHorizontalPadding,
+                  top = fullscreenLightTopPadding,
+                  bottom = fullscreenLightBottomPadding,
+                )
+              fullscreenMirror -> Modifier
+              else -> Modifier.padding(top = NativeCameraTopGap)
+            },
+          )
           .graphicsLayer {
-            scaleX = reviewZoom
-            scaleY = reviewZoom
+            scaleX = displayZoom
+            scaleY = displayZoom
+            translationX = panOffset.x
+            translationY = panOffset.y
+            transformOrigin =
+              if (fullscreenMirror) {
+                TransformOrigin.Center
+              } else {
+                TransformOrigin(0.5f, 0f)
+              }
           },
       contentScale = if (fullscreenMirror) ContentScale.Crop else ContentScale.Fit,
       alignment = if (fullscreenMirror) Alignment.Center else Alignment.TopCenter,
     )
+    if (lightActive) {
+      Box(
+        Modifier
+          .fillMaxSize()
+          .background(lightFrameUiShadeBrush(flashStrength)),
+      )
+    }
   }
 }
 
@@ -937,6 +1058,66 @@ private fun MirrorFrame.toDisplayBitmap(mirrorFlip: Boolean): Bitmap {
   if (rotationDegrees != 0) matrix.postRotate(rotationDegrees.toFloat())
   if (mirrorFlip) matrix.postScale(-1f, 1f)
   return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
+}
+
+private fun cameraZoomRatio(
+  zoomRatio: Float,
+  minZoomRatio: Float,
+  maxZoomRatio: Float,
+): Float = zoomRatio.coerceAtMost(1f).coerceIn(minZoomRatio, maxZoomRatio)
+
+private fun displayZoomRatio(zoomRatio: Float): Float = zoomRatio.coerceAtLeast(1f)
+
+private fun clampPreviewPan(
+  desiredOffset: Offset,
+  previewSize: IntSize,
+  bitmapWidth: Int,
+  bitmapHeight: Int,
+  displayZoom: Float,
+  fullscreenMirror: Boolean,
+  horizontalPaddingPx: Float,
+  topPaddingPx: Float,
+  bottomPaddingPx: Float,
+): Offset {
+  if (
+    previewSize.width <= 0 ||
+    previewSize.height <= 0 ||
+    bitmapWidth <= 0 ||
+    bitmapHeight <= 0 ||
+    displayZoom <= 1f
+  ) {
+    return Offset.Zero
+  }
+
+  val availableWidth = (previewSize.width.toFloat() - (horizontalPaddingPx * 2f)).coerceAtLeast(1f)
+  val availableHeight = (previewSize.height.toFloat() - topPaddingPx - bottomPaddingPx).coerceAtLeast(1f)
+  val bitmapWidthPx = bitmapWidth.toFloat()
+  val bitmapHeightPx = bitmapHeight.toFloat()
+  val baseScale =
+    if (fullscreenMirror) {
+      max(availableWidth / bitmapWidthPx, availableHeight / bitmapHeightPx)
+    } else {
+      min(availableWidth / bitmapWidthPx, availableHeight / bitmapHeightPx)
+    }
+  val scaledWidth = bitmapWidthPx * baseScale * displayZoom
+  val scaledHeight = bitmapHeightPx * baseScale * displayZoom
+  val maxTranslationX = ((scaledWidth - availableWidth) / 2f).coerceAtLeast(0f)
+  val extraHeight = (scaledHeight - availableHeight).coerceAtLeast(0f)
+  val minTranslationY: Float
+  val maxTranslationY: Float
+  if (fullscreenMirror) {
+    val centeredTranslationY = extraHeight / 2f
+    minTranslationY = -centeredTranslationY
+    maxTranslationY = centeredTranslationY
+  } else {
+    minTranslationY = -extraHeight
+    maxTranslationY = 0f
+  }
+
+  return Offset(
+    x = desiredOffset.x.coerceIn(-maxTranslationX, maxTranslationX),
+    y = desiredOffset.y.coerceIn(minTranslationY, maxTranslationY),
+  )
 }
 
 @Composable
@@ -1037,12 +1218,75 @@ private fun ControlPanel(
   modifier: Modifier = Modifier,
 ) {
   val isReview = state.mode == MirrorMode.Review
-  Box(
+  BoxWithConstraints(
     modifier =
       modifier
         .fillMaxWidth()
         .height(if (delayPickerOpen && !isReview) 214.dp else 150.dp),
   ) {
+    val compactControls = maxWidth < CompactControlWidth
+    val tinyControls = maxWidth < TinyControlWidth
+    val sideControlTouchSize =
+      when {
+        tinyControls -> TinySecondaryControlTouchSize
+        compactControls -> CompactSecondaryControlTouchSize
+        else -> SecondaryControlTouchSize
+      }
+    val sideControlVisualSize =
+      when {
+        tinyControls -> TinySecondaryControlVisualSize
+        compactControls -> CompactSecondaryControlVisualSize
+        else -> SecondaryControlVisualSize
+      }
+    val primaryControlTouchSize =
+      when {
+        tinyControls -> TinyPrimaryControlTouchSize
+        compactControls -> CompactPrimaryControlTouchSize
+        else -> PrimaryControlTouchSize
+      }
+    val primaryControlVisualSize =
+      when {
+        tinyControls -> TinyPrimaryControlVisualSize
+        compactControls -> CompactPrimaryControlVisualSize
+        else -> PrimaryControlVisualSize
+      }
+    val endControlPadding =
+      when {
+        tinyControls -> TinyControlEndPadding
+        compactControls -> CompactControlEndPadding
+        else -> ControlEndPadding
+      }
+    val controlGap =
+      when {
+        tinyControls -> TinyControlGap
+        compactControls -> CompactControlGap
+        else -> 0.dp
+      }
+    val innerControlOffset =
+      if (compactControls) {
+        responsiveInnerControlOffset(
+          containerWidth = maxWidth,
+          sideControlSize = sideControlTouchSize,
+          primaryControlSize = primaryControlTouchSize,
+          endPadding = endControlPadding,
+          gap = controlGap,
+        )
+      } else {
+        BottomInnerControlOffset
+      }
+    val outerControlOffset =
+      if (compactControls) {
+        responsiveOuterControlOffset(
+          containerWidth = maxWidth,
+          sideControlSize = sideControlTouchSize,
+          endPadding = endControlPadding,
+          gap = controlGap,
+          innerOffset = innerControlOffset,
+        )
+      } else {
+        BottomOuterControlOffset
+      }
+
     if (isReview) {
       ReviewTransport(
         state = state,
@@ -1066,8 +1310,10 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
-            .offset(x = -BottomInnerControlOffset)
+            .offset(x = -innerControlOffset)
             .padding(bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTarget = CoachTarget.ReviewBack,
         coachTargets = coachTargets,
       )
@@ -1083,8 +1329,10 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
-            .offset(x = BottomInnerControlOffset)
+            .offset(x = innerControlOffset)
             .padding(bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTarget = CoachTarget.ReviewForward,
         coachTargets = coachTargets,
       )
@@ -1097,7 +1345,9 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomEnd)
-            .padding(end = 20.dp, bottom = 30.dp),
+            .padding(end = endControlPadding, bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTarget = CoachTarget.Flip,
         coachTargets = coachTargets,
       )
@@ -1115,17 +1365,19 @@ private fun ControlPanel(
       }
       RoundIconButton(
         icon = ControlIcon.Light,
-        active = state.flashStrength > 0.05f,
+        active = state.flashStrength > LightActiveThreshold,
         onClick = { onFlashChange(nextLightStrength(state.flashStrength)) },
         holdEnabled = true,
         onHoldStart = { onFlashChange(0f) },
         accessibilityLabel = stringResource(R.string.light),
-        accessibilityState = if (state.flashStrength > 0.05f) stringResource(R.string.a11y_on) else stringResource(R.string.a11y_off),
+        accessibilityState = if (state.flashStrength > LightActiveThreshold) stringResource(R.string.a11y_on) else stringResource(R.string.a11y_off),
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
-            .offset(x = -BottomOuterControlOffset)
+            .offset(x = -outerControlOffset)
             .padding(bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTarget = CoachTarget.Light,
         coachTargets = coachTargets,
       )
@@ -1137,8 +1389,10 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
-            .offset(x = -BottomInnerControlOffset)
+            .offset(x = -innerControlOffset)
             .padding(bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTargets = coachTargets,
       )
       DelayPresetButton(
@@ -1148,8 +1402,10 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomCenter)
-            .offset(x = BottomInnerControlOffset)
+            .offset(x = innerControlOffset)
             .padding(bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTargets = coachTargets,
       )
       RoundIconButton(
@@ -1161,7 +1417,9 @@ private fun ControlPanel(
         modifier =
           Modifier
             .align(Alignment.BottomEnd)
-            .padding(end = 20.dp, bottom = 30.dp),
+            .padding(end = endControlPadding, bottom = 30.dp),
+        touchSize = sideControlTouchSize,
+        visualSize = sideControlVisualSize,
         coachTarget = CoachTarget.Flip,
         coachTargets = coachTargets,
       )
@@ -1179,6 +1437,8 @@ private fun ControlPanel(
         Modifier
           .align(Alignment.BottomCenter)
           .padding(bottom = 19.dp),
+      touchSize = primaryControlTouchSize,
+      visualSize = primaryControlVisualSize,
       coachTarget = if (isReview) CoachTarget.Live else CoachTarget.Stop,
       coachTargets = coachTargets,
     )
@@ -1192,24 +1452,32 @@ private fun DelayChoiceBar(
   modifier: Modifier = Modifier,
 ) {
   val choices = listOf(0f, 2f, 3f, 5f)
-  Box(
+  BoxWithConstraints(
     modifier =
       modifier
         .fillMaxWidth()
         .height(66.dp),
     contentAlignment = Alignment.Center,
   ) {
+    val chipGap = if (maxWidth < DelayChoiceCompactWidth) CompactDelayChoiceGap else DelayChoiceGap
+    val chipWidth =
+      minOf(
+        DelayChoiceChipWidth,
+        (maxWidth - (chipGap * (choices.size - 1).toFloat())) / choices.size,
+      )
+    val safeChipWidth = maxOf(MinDelayChoiceChipWidth, chipWidth)
+    val trayWidth = minOf(DelayChoiceTrayWidth, maxWidth)
     Image(
       painter = painterResource(R.drawable.ui_delay_tray_v1),
       contentDescription = null,
       modifier =
         Modifier
-          .width(310.dp)
+          .width(trayWidth)
           .height(66.dp),
       contentScale = ContentScale.Fit,
     )
     Row(
-      horizontalArrangement = Arrangement.spacedBy(6.dp),
+      horizontalArrangement = Arrangement.spacedBy(chipGap),
       verticalAlignment = Alignment.CenterVertically,
     ) {
       choices.forEach { seconds ->
@@ -1217,6 +1485,7 @@ private fun DelayChoiceBar(
           seconds = seconds,
           selected = abs(seconds - selectedDelaySeconds) < 0.1f,
           onClick = { onDelayChange(seconds) },
+          width = safeChipWidth,
         )
       }
     }
@@ -1228,13 +1497,14 @@ private fun DelayChoiceChip(
   seconds: Float,
   selected: Boolean,
   onClick: () -> Unit,
+  width: Dp,
   modifier: Modifier = Modifier,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
   Box(
     modifier =
       modifier
-        .width(66.dp)
+        .width(width)
         .height(50.dp)
         .pointerInput(Unit) {
           awaitEachGesture {
@@ -1250,7 +1520,7 @@ private fun DelayChoiceChip(
       contentDescription = null,
       modifier =
         Modifier
-          .width(64.dp)
+          .width(maxOf(44.dp, width - 2.dp))
           .height(38.dp),
       contentScale = ContentScale.Fit,
     )
@@ -1399,6 +1669,8 @@ private fun PrimaryActionButton(
   onHoldEnd: () -> Unit,
   modifier: Modifier = Modifier,
   text: String? = null,
+  touchSize: Dp = PrimaryControlTouchSize,
+  visualSize: Dp = PrimaryControlVisualSize,
   accessibilityLabel: String,
   coachTarget: CoachTarget? = null,
   coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
@@ -1410,7 +1682,7 @@ private fun PrimaryActionButton(
   Box(
     modifier =
       modifier
-        .size(84.dp)
+        .size(touchSize)
         .then(if (coachTarget != null && coachTargets != null) Modifier.coachTarget(coachTarget, coachTargets) else Modifier)
         .accessibleButtonSemantics(
           label = accessibilityLabel,
@@ -1454,7 +1726,7 @@ private fun PrimaryActionButton(
           }
         ),
       contentDescription = null,
-      modifier = Modifier.size(72.dp),
+      modifier = Modifier.size(visualSize),
       contentScale = ContentScale.Fit,
     )
     if (text != null) {
@@ -1534,6 +1806,8 @@ private fun RoundIconButton(
   onHoldStart: () -> Unit = {},
   onHoldEnd: () -> Unit = {},
   stepText: String? = null,
+  touchSize: Dp = SecondaryControlTouchSize,
+  visualSize: Dp = SecondaryControlVisualSize,
   accessibilityLabel: String,
   accessibilityState: String? = null,
   coachTarget: CoachTarget? = null,
@@ -1546,7 +1820,7 @@ private fun RoundIconButton(
   Surface(
     modifier =
       modifier
-        .size(58.dp)
+        .size(touchSize)
         .then(if (coachTarget != null && coachTargets != null) Modifier.coachTarget(coachTarget, coachTargets) else Modifier)
         .accessibleButtonSemantics(
           label = accessibilityLabel,
@@ -1592,7 +1866,7 @@ private fun RoundIconButton(
       Image(
         painter = painterResource(if (active) R.drawable.ui_secondary_metal_v1 else R.drawable.ui_secondary_glass_v1),
         contentDescription = null,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(visualSize),
         contentScale = ContentScale.Fit,
       )
       if (stepText == null) {
@@ -1621,6 +1895,8 @@ private fun DelayPresetButton(
   onClick: () -> Unit,
   accessibilityLabel: String,
   modifier: Modifier = Modifier,
+  touchSize: Dp = SecondaryControlTouchSize,
+  visualSize: Dp = SecondaryControlVisualSize,
   coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
@@ -1628,7 +1904,7 @@ private fun DelayPresetButton(
   Surface(
     modifier =
       modifier
-        .size(58.dp)
+        .size(touchSize)
         .then(if (coachTargets != null) Modifier.coachTarget(CoachTarget.Delay, coachTargets) else Modifier)
         .accessibleButtonSemantics(
           label = accessibilityLabel,
@@ -1659,7 +1935,7 @@ private fun DelayPresetButton(
       Image(
         painter = painterResource(R.drawable.ui_secondary_metal_v1),
         contentDescription = null,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(visualSize),
         contentScale = ContentScale.Fit,
       )
       Text(
@@ -1679,6 +1955,8 @@ private fun DisplayModeButton(
   accessibilityLabel: String,
   accessibilityState: String,
   modifier: Modifier = Modifier,
+  touchSize: Dp = SecondaryControlTouchSize,
+  visualSize: Dp = SecondaryControlVisualSize,
   coachTargets: MutableMap<CoachTarget, CoachTargetBounds>? = null,
 ) {
   val currentOnClick by rememberUpdatedState(onClick)
@@ -1686,7 +1964,7 @@ private fun DisplayModeButton(
   Surface(
     modifier =
       modifier
-        .size(58.dp)
+        .size(touchSize)
         .then(if (coachTargets != null) Modifier.coachTarget(CoachTarget.DisplayMode, coachTargets) else Modifier)
         .accessibleButtonSemantics(
           label = accessibilityLabel,
@@ -1717,7 +1995,7 @@ private fun DisplayModeButton(
       Image(
         painter = painterResource(if (fullscreenMirror) R.drawable.ui_secondary_metal_v1 else R.drawable.ui_secondary_glass_v1),
         contentDescription = null,
-        modifier = Modifier.size(48.dp),
+        modifier = Modifier.size(visualSize),
         contentScale = ContentScale.Fit,
       )
       DisplayModeGlyph(
@@ -2104,9 +2382,47 @@ private fun timelineFraction(state: MirrorUiState): Float {
     ).coerceIn(0f, 1f)
 }
 
+@Composable
+private fun helpButtonTopPadding(): Dp {
+  val density = LocalDensity.current
+  val statusBarTop = with(density) { WindowInsets.statusBars.getTop(density).toDp() }
+  val preferredTop = statusBarTop + HelpButtonTopPadding
+  val maxTopInsideLetterbox = NativeCameraTopGap - HelpButtonTouchSize
+  return preferredTop.coerceAtMost(maxTopInsideLetterbox).coerceAtLeast(0.dp)
+}
+
+private fun responsiveInnerControlOffset(
+  containerWidth: Dp,
+  sideControlSize: Dp,
+  primaryControlSize: Dp,
+  endPadding: Dp,
+  gap: Dp,
+): Dp {
+  val minOffset = (primaryControlSize / 2) + (sideControlSize / 2) + gap
+  val maxOffset = (containerWidth / 2) - endPadding - sideControlSize - (sideControlSize / 2) - gap
+  return BottomInnerControlOffset.coerceBetween(minOffset, maxOffset)
+}
+
+private fun responsiveOuterControlOffset(
+  containerWidth: Dp,
+  sideControlSize: Dp,
+  endPadding: Dp,
+  gap: Dp,
+  innerOffset: Dp,
+): Dp {
+  val minOffset = innerOffset + sideControlSize + gap
+  val maxOffset = (containerWidth / 2) - (sideControlSize / 2) - endPadding
+  return BottomOuterControlOffset.coerceBetween(minOffset, maxOffset)
+}
+
+private fun Dp.coerceBetween(minimum: Dp, maximum: Dp): Dp {
+  val safeMaximum = maxOf(minimum, maximum)
+  return minOf(maxOf(this, minimum), safeMaximum)
+}
+
 private fun nextLightStrength(current: Float): Float =
   when {
-    current < 0.05f -> 0.35f
+    current < LightActiveThreshold -> 0.35f
     current < 0.45f -> 0.65f
     current < 0.85f -> 1f
     else -> 0f
@@ -2115,15 +2431,61 @@ private fun nextLightStrength(current: Float): Float =
 private const val REVIEW_SEEK_TAP_SECONDS = 0.5f
 private const val PRIMARY_LONG_PRESS_MILLIS = 320L
 private const val TRANSPORT_LONG_PRESS_MILLIS = 260L
+private const val LightActiveThreshold = 0.05f
 private val NativeCameraTopGap = 90.dp
+private val HelpButtonTouchSize = 48.dp
+private val HelpButtonVisualSize = 40.dp
+private val HelpButtonTopPadding = 8.dp
+private val HelpButtonEndPadding = 18.dp
+private val HelpButtonBottomClearance = 8.dp
 private val PreviewFineControlBottomGap = 172.dp
+private val CompactControlWidth = 376.dp
+private val TinyControlWidth = 320.dp
+private val PrimaryControlTouchSize = 84.dp
+private val PrimaryControlVisualSize = 72.dp
+private val CompactPrimaryControlTouchSize = 78.dp
+private val CompactPrimaryControlVisualSize = 68.dp
+private val TinyPrimaryControlTouchSize = 72.dp
+private val TinyPrimaryControlVisualSize = 64.dp
+private val SecondaryControlTouchSize = 58.dp
+private val SecondaryControlVisualSize = 48.dp
+private val CompactSecondaryControlTouchSize = 50.dp
+private val CompactSecondaryControlVisualSize = 44.dp
+private val TinySecondaryControlTouchSize = 48.dp
+private val TinySecondaryControlVisualSize = 42.dp
+private val ControlEndPadding = 20.dp
+private val CompactControlEndPadding = 8.dp
+private val TinyControlEndPadding = 4.dp
+private val CompactControlGap = 4.dp
+private val TinyControlGap = 2.dp
 private val BottomInnerControlOffset = 78.dp
 private val BottomOuterControlOffset = 142.dp
+private val DelayChoiceTrayWidth = 310.dp
+private val DelayChoiceChipWidth = 66.dp
+private val MinDelayChoiceChipWidth = 48.dp
+private val DelayChoiceGap = 6.dp
+private val CompactDelayChoiceGap = 4.dp
+private val DelayChoiceCompactWidth = 300.dp
 private val MetalControlInk = Color(0xFF242A31)
 private val CoachRose = Color(0xFFA62463)
-private fun letterboxLightColor(strength: Float): Color {
-  val alpha = (strength.coerceIn(0f, 1f) * 0.9f)
-  return Color.White.copy(alpha = alpha)
+private fun lightFrameColor(strength: Float): Color {
+  val alpha = 0.18f + (strength.coerceIn(0f, 1f) * 0.72f)
+  return Color(0xFFFFFBF4).copy(alpha = alpha)
+}
+
+private fun lightFrameUiShadeBrush(strength: Float): Brush {
+  val clamped = strength.coerceIn(0f, 1f)
+  val topShade = 0.1f + (0.08f * clamped)
+  val bottomShade = 0.18f + (0.24f * clamped)
+  return Brush.verticalGradient(
+    colorStops =
+      arrayOf(
+        0f to Color.Black.copy(alpha = topShade),
+        0.14f to Color.Transparent,
+        0.7f to Color.Transparent,
+        1f to Color.Black.copy(alpha = bottomShade),
+      ),
+  )
 }
 
 private fun nextDelayPreset(current: Float): Float {

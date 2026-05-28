@@ -33,7 +33,12 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
             delaySeconds = settings.delaySeconds,
             mirrorFlip = settings.mirrorFlip,
             flashStrength = settings.flashStrength,
-            zoomRatio = settings.zoomRatio.coerceIn(it.minZoomRatio, it.maxZoomRatio),
+            zoomRatio =
+              if (it.zoomRangeResolved) {
+                settings.zoomRatio.coerceIn(it.minZoomRatio, it.maxZoomRatio)
+              } else {
+                settings.zoomRatio.coerceAtLeast(MIN_ZOOM_RATIO)
+              },
             fullscreenMirror = settings.fullscreenMirror,
             liveCoachSeen = settings.liveCoachSeen,
             reviewCoachSeen = settings.reviewCoachSeen,
@@ -232,10 +237,11 @@ class MainScreenViewModel(application: Application) : AndroidViewModel(applicati
   }
 
   fun setZoomRange(min: Float, max: Float) {
-    val safeMin = min.coerceAtLeast(0.1f)
+    val safeMin = min.coerceAtLeast(MIN_ZOOM_RATIO)
     val safeMax = max.coerceAtLeast(safeMin)
     _uiState.update {
       it.copy(
+        zoomRangeResolved = true,
         minZoomRatio = safeMin,
         maxZoomRatio = safeMax,
         zoomRatio = it.zoomRatio.coerceIn(safeMin, safeMax),
@@ -282,7 +288,8 @@ data class MirrorUiState(
   val fullscreenMirror: Boolean = false,
   val liveCoachSeen: Boolean = false,
   val reviewCoachSeen: Boolean = false,
-  val minZoomRatio: Float = 1f,
+  val zoomRangeResolved: Boolean = false,
+  val minZoomRatio: Float = MIN_ZOOM_RATIO,
   val maxZoomRatio: Float = 4f,
   val bufferSeconds: Float = 0f,
   val currentFrame: MirrorFrame? = null,
@@ -300,6 +307,7 @@ private const val REVIEW_PLAYBACK_STEP_SECONDS = 0.066f
 private const val MIN_DELAY_WAIT_SECONDS = 0.05f
 private const val DELAY_READY_TOLERANCE_SECONDS = 0.25f
 private const val MAX_DELAY_SECONDS = 5f
+private const val MIN_ZOOM_RATIO = 0.1f
 
 private fun requiredBufferSecondsFor(delaySeconds: Float): Float =
   (delaySeconds - DELAY_READY_TOLERANCE_SECONDS).coerceAtLeast(0f)
