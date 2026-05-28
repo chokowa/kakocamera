@@ -4,6 +4,11 @@ This file records user-approved product and implementation direction changes, in
 
 ## 2026-05-28
 
+- Added a new live coach mark step (step 6 of 7) highlighting the stabilization toggle and explaining how it locks target frame rate to reduce motion blur in dark places, updating the SPEC and string resources accordingly.
+- Replaced the preview stabilization option with a constant 30 FPS target range lock (limiting shutter speed to max 33ms in low light) under the "手ブレ補正" toggle, reducing motion blur during checks while freezing the unused preview stabilization code.
+- Replaced the stabilization round button with a live-only horizontal slider toggle above the display-mode button so it no longer overlaps the right-side preview controls.
+- Added a LIVE stabilization toggle plus `KakoStabilization` debug logs so preview-stabilization request/result state can be verified from logcat instead of guessed from feel alone.
+- Enabled Camera2 preview stabilization automatically on supported Android 13+ front cameras for the delayed analysis stream, while keeping unsupported devices on the previous unstabilized path.
 - Changed zoom-in above 1.0 to use display-side enlargement with drag panning, while keeping sub-1.0 zoom-out on devices whose front camera exposes a wider minimum ratio.
 - Allowed sub-1.0 zoom ratios to persist and restore on devices whose front camera reports zoom-out support, while still clamping back to the device minimum on hardware that bottoms out at 1.0.
 - Removed the review-only bitmap scaling so the preview screen keeps the same framing and spare margins as LIVE unless the display mode itself changes.

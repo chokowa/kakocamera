@@ -8,6 +8,8 @@ import android.graphics.Matrix
 import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
@@ -115,6 +117,7 @@ fun MainScreen(
   val controller = remember { CameraMirrorController(context.applicationContext) }
   var startAfterPermission by remember { mutableStateOf(false) }
   var autoStartRequested by remember { mutableStateOf(false) }
+  var lastStabilizationEnabled by remember { mutableStateOf(state.stabilizationEnabled) }
   var hasCameraPermission by remember {
     mutableStateOf(
       ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
@@ -122,15 +125,21 @@ fun MainScreen(
     )
   }
 
-  fun startCamera() {
-    viewModel.startLive()
+  fun bindCameraSession() {
     controller.start(
       lifecycleOwner = lifecycleOwner,
       initialZoomRatio = cameraZoomRatio(state.zoomRatio, state.minZoomRatio, state.maxZoomRatio),
+      stabilizationEnabled = state.stabilizationEnabled,
       onFrame = viewModel::onFrame,
       onZoomRange = viewModel::setZoomRange,
+      onStabilizationSupported = viewModel::setStabilizationSupported,
     )
     controller.setLightStrength(state.flashStrength)
+  }
+
+  fun startCamera() {
+    viewModel.startLive()
+    bindCameraSession()
   }
 
   val permissionLauncher =
@@ -154,6 +163,18 @@ fun MainScreen(
     if (state.mode == MirrorMode.Live && state.zoomRangeResolved) {
       controller.setZoomRatio(cameraZoomRatio(state.zoomRatio, state.minZoomRatio, state.maxZoomRatio))
     }
+  }
+
+  LaunchedEffect(state.stabilizationEnabled, state.mode, hasCameraPermission, autoStartRequested) {
+    if (
+      state.mode == MirrorMode.Live &&
+      hasCameraPermission &&
+      autoStartRequested &&
+      state.stabilizationEnabled != lastStabilizationEnabled
+    ) {
+      bindCameraSession()
+    }
+    lastStabilizationEnabled = state.stabilizationEnabled
   }
 
   LaunchedEffect(state.flashStrength) {
@@ -184,6 +205,7 @@ fun MainScreen(
     onDelayChange = viewModel::setDelay,
     onMirrorToggle = viewModel::toggleMirror,
     onFullscreenToggle = viewModel::toggleFullscreenMirror,
+    onStabilizationToggle = viewModel::toggleStabilization,
     onFlashChange = { strength ->
       controller.setLightStrength(strength)
       viewModel.setFlash(strength)
@@ -210,6 +232,7 @@ internal fun KakoMirrorScreen(
   onDelayChange: (Float) -> Unit = {},
   onMirrorToggle: () -> Unit = {},
   onFullscreenToggle: () -> Unit = {},
+  onStabilizationToggle: () -> Unit = {},
   onFlashChange: (Float) -> Unit = {},
   onZoomChange: (Float) -> Unit = {},
   onReviewPositionChange: (Float) -> Unit = {},
@@ -296,6 +319,7 @@ internal fun KakoMirrorScreen(
         state = state,
         onFlashChange = onFlashChange,
         onZoomChange = onZoomChange,
+        onStabilizationToggle = onStabilizationToggle,
         coachTargets = coachTargets,
         modifier = Modifier.fillMaxSize(),
       )
@@ -308,6 +332,7 @@ internal fun KakoMirrorScreen(
         onStop = onStop,
         onMirrorToggle = onMirrorToggle,
         onFullscreenToggle = onFullscreenToggle,
+        onStabilizationToggle = onStabilizationToggle,
         delayPickerOpen = delayPickerOpen,
         onDelayPickerToggle = { delayPickerOpen = !delayPickerOpen },
         onDelayChange = { seconds ->
@@ -656,6 +681,11 @@ private fun liveCoachSteps(): List<CoachStep> =
       bodyResId = R.string.coach_live_fine_body,
     ),
     CoachStep(
+      targets = listOf(CoachTarget.Stabilization),
+      titleResId = R.string.coach_live_stabilization_title,
+      bodyResId = R.string.coach_live_stabilization_body,
+    ),
+    CoachStep(
       targets = listOf(CoachTarget.Stop),
       titleResId = R.string.coach_live_stop_title,
       bodyResId = R.string.coach_live_stop_body,
@@ -714,6 +744,7 @@ private enum class CoachTarget {
   ReviewBack,
   ReviewForward,
   Live,
+  Stabilization,
 }
 
 private data class CoachTargetBounds(
@@ -1204,6 +1235,7 @@ private fun ControlPanel(
   onStop: () -> Unit,
   onMirrorToggle: () -> Unit,
   onFullscreenToggle: () -> Unit,
+  onStabilizationToggle: () -> Unit,
   delayPickerOpen: Boolean,
   onDelayPickerToggle: () -> Unit,
   onDelayChange: (Float) -> Unit,
@@ -2073,6 +2105,143 @@ private fun ControlGlyph(icon: ControlIcon, active: Boolean, modifier: Modifier 
   }
 }
 
+@Composable
+private fun StabilizationToggle(
+  enabled: Boolean,
+  checked: Boolean,
+  onToggle: () -> Unit,
+  accessibilityLabel: String,
+  accessibilityState: String,
+  modifier: Modifier = Modifier,
+  touchWidth: Dp,
+  touchHeight: Dp,
+  visualWidth: Dp,
+  visualHeight: Dp,
+) {
+  val currentOnToggle by rememberUpdatedState(onToggle)
+  val knobInset = 3.dp
+  val knobSize = visualHeight - (knobInset * 2f)
+  val knobTravel = (visualWidth - knobSize - (knobInset * 2f)).coerceAtLeast(0.dp)
+  val knobOffset by
+    animateDpAsState(
+      targetValue = if (checked) knobTravel else 0.dp,
+      animationSpec = tween(durationMillis = 180),
+      label = "stabilizationToggleOffset",
+    )
+
+  Box(
+    modifier =
+      modifier
+        .size(width = touchWidth, height = touchHeight)
+        .accessibleButtonSemantics(
+          label = accessibilityLabel,
+          stateLabel = accessibilityState,
+          onClickLabel = if (enabled) accessibilityLabel else null,
+          onClickAction = if (enabled) currentOnToggle else null,
+        )
+        .graphicsLayer { alpha = if (enabled) 1f else 0.54f }
+        .pointerInput(enabled) {
+          awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            val up = waitForUpOrCancellation()
+            if (up != null && enabled) currentOnToggle()
+          }
+        },
+    contentAlignment = Alignment.Center,
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .width(visualWidth)
+          .height(visualHeight),
+      contentAlignment = Alignment.CenterStart,
+    ) {
+      Canvas(modifier = Modifier.matchParentSize()) {
+        val radius = size.height / 2f
+        drawRoundRect(
+          color = Color.Black.copy(alpha = if (checked) 0.86f else 0.78f),
+          cornerRadius = CornerRadius(radius, radius),
+        )
+        drawRoundRect(
+          brush =
+            Brush.verticalGradient(
+              colors =
+                listOf(
+                  Color.White.copy(alpha = if (checked) 0.34f else 0.20f),
+                  Color.Black.copy(alpha = if (checked) 0.36f else 0.28f),
+                ),
+            ),
+          cornerRadius = CornerRadius(radius, radius),
+        )
+        drawRoundRect(
+          color = Color.Black.copy(alpha = if (checked) 0.30f else 0.22f),
+          topLeft = Offset(1.2.dp.toPx(), 1.2.dp.toPx()),
+          size = Size(size.width - 2.4.dp.toPx(), size.height - 2.4.dp.toPx()),
+          cornerRadius = CornerRadius(radius, radius),
+          style = Stroke(width = 1.2.dp.toPx()),
+        )
+        if (checked) {
+          drawRoundRect(
+            brush =
+              Brush.horizontalGradient(
+                colors =
+                  listOf(
+                    Color.White.copy(alpha = 0.34f),
+                    MetalControlInk.copy(alpha = 0.22f),
+                  ),
+              ),
+            topLeft = Offset(1.5.dp.toPx(), 1.5.dp.toPx()),
+            size = Size(size.width - 3.dp.toPx(), size.height - 3.dp.toPx()),
+            cornerRadius = CornerRadius(radius, radius),
+          )
+        }
+      }
+      Box(
+        modifier =
+          Modifier
+            .padding(start = knobInset)
+            .offset(x = knobOffset)
+            .size(knobSize),
+        contentAlignment = Alignment.Center,
+      ) {
+        Image(
+          painter = painterResource(if (checked) R.drawable.ui_secondary_metal_v1 else R.drawable.ui_secondary_glass_v1),
+          contentDescription = null,
+          modifier = Modifier.fillMaxSize(),
+          contentScale = ContentScale.Fit,
+        )
+        Canvas(modifier = Modifier.size((knobSize * 0.42f).coerceAtLeast(10.dp))) {
+          val glyphColor = if (checked) MetalControlInk else Color.White.copy(alpha = 0.82f)
+          val wave = Path().apply {
+            moveTo(size.width * 0.12f, size.height * 0.62f)
+            cubicTo(
+              size.width * 0.28f,
+              size.height * 0.28f,
+              size.width * 0.40f,
+              size.height * 0.80f,
+              size.width * 0.58f,
+              size.height * 0.42f,
+            )
+            cubicTo(
+              size.width * 0.70f,
+              size.height * 0.18f,
+              size.width * 0.84f,
+              size.height * 0.64f,
+              size.width * 0.90f,
+              size.height * 0.34f,
+            )
+          }
+          drawPath(
+            path = wave,
+            color = glyphColor,
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round),
+          )
+        }
+      }
+    }
+  }
+}
+
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSeekGlyph(color: Color, forward: Boolean) {
   val leftA = if (forward) 0.24f else 0.76f
   val rightA = if (forward) 0.48f else 0.52f
@@ -2099,12 +2268,17 @@ private fun PreviewSliders(
   state: MirrorUiState,
   onFlashChange: (Float) -> Unit,
   onZoomChange: (Float) -> Unit,
+  onStabilizationToggle: () -> Unit,
   coachTargets: MutableMap<CoachTarget, CoachTargetBounds>,
   modifier: Modifier = Modifier,
 ) {
   var activeSlider by remember { mutableStateOf<PreviewSliderKind?>(null) }
   val expandedState = stringResource(R.string.a11y_expanded)
   val collapsedState = stringResource(R.string.a11y_collapsed)
+  val stabilizationTouchWidth = 60.dp
+  val stabilizationTouchHeight = 40.dp
+  val stabilizationVisualWidth = 54.dp
+  val stabilizationVisualHeight = 24.dp
   Box(modifier) {
     LiveFineControlRail(
       modifier =
@@ -2113,6 +2287,27 @@ private fun PreviewSliders(
           .padding(start = 90.dp, end = 90.dp, bottom = PreviewFineControlBottomGap)
           .height(44.dp)
           .fillMaxWidth(),
+    )
+    StabilizationToggle(
+      enabled = state.stabilizationSupported,
+      checked = state.stabilizationEnabled && state.stabilizationSupported,
+      onToggle = onStabilizationToggle,
+      accessibilityLabel = stringResource(R.string.stabilization),
+      accessibilityState =
+        when {
+          !state.stabilizationSupported -> stringResource(R.string.a11y_unavailable)
+          state.stabilizationEnabled -> stringResource(R.string.a11y_on)
+          else -> stringResource(R.string.a11y_off)
+        },
+      modifier =
+        Modifier
+          .align(Alignment.BottomCenter)
+          .padding(bottom = PreviewFineControlBottomGap)
+          .coachTarget(CoachTarget.Stabilization, coachTargets, shape = CoachTargetShape.Rounded),
+      touchWidth = stabilizationTouchWidth,
+      touchHeight = stabilizationTouchHeight,
+      visualWidth = stabilizationVisualWidth,
+      visualHeight = stabilizationVisualHeight,
     )
     FloatingVerticalSlider(
       value = state.flashStrength,

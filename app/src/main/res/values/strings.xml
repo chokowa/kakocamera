@@ -6,6 +6,7 @@
     <string name="delay">遅延</string>
     <string name="mirror_flip">反転</string>
     <string name="light">ライト</string>
+    <string name="stabilization">手ブレ補正</string>
     <string name="zoom">ズーム</string>
     <string name="full_size">フルサイズ</string>
     <string name="fullscreen">全画面</string>
@@ -35,10 +36,12 @@
     <string name="coach_live_flip_body">鏡と同じか相手からの見た目か</string>
     <string name="coach_live_display_title">画面いっぱいに大きく映せます</string>
     <string name="coach_live_display_body">もう一度押すとフルサイズの画面に戻ります</string>
-    <string name="coach_live_light_title">押す度に上下が白く変化してライト代わりに</string>
-    <string name="coach_live_light_body">周りが暗い時に便利です</string>
+    <string name="coach_live_light_title">光るフレームでまわりを明るくできます</string>
+    <string name="coach_live_light_body">フルサイズでは余白、全画面では細い縁が光ります</string>
     <string name="coach_live_fine_title">細かい調整はここ</string>
     <string name="coach_live_fine_body">○で明るさ、＋でズーム</string>
+    <string name="coach_live_stabilization_title">暗い場所でのブレを抑える</string>
+    <string name="coach_live_stabilization_body">オンにするとフレームレートを固定してブレを減らします</string>
     <string name="coach_live_stop_title">過去のミラーを見返せます</string>
     <string name="coach_live_stop_body">最大5秒前まで戻って確認できます</string>
     <string name="coach_review_slider_title">好きな場所まで戻せます</string>
@@ -56,6 +59,7 @@
     <string name="a11y_return_live">LIVEに戻る</string>
     <string name="a11y_on">オン</string>
     <string name="a11y_off">オフ</string>
+    <string name="a11y_unavailable">未対応</string>
     <string name="a11y_display_mode">表示モード</string>
     <string name="a11y_delay_button">遅延 %1$d 秒</string>
     <string name="a11y_flip_mirror_view">鏡表示</string>

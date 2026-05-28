@@ -117,8 +117,10 @@ Pseudo flash:
 
 - The main camera image should prefer sensor coverage with `Fit` rendering.
 - Leave any unused letterbox area black when pseudo flash is off.
-- When pseudo flash is on, brighten only the unused letterbox/background area according to the light strength.
+- In full-size mode, pseudo flash should brighten the spare letterbox/background area around the camera image according to the light strength.
+- In fullscreen mode, pseudo flash should slightly inset the camera image and use the newly exposed edge area as a light frame.
 - Do not place a white overlay over the camera image itself.
+- Keep the help button, fine sliders, and bottom controls readable while the light frame is on.
 
 ## Start State
 
@@ -137,7 +139,8 @@ Live coach mark order:
 3. Fullscreen: `画面いっぱいに大きく映せます` / `もう一度押すとフルサイズの画面に戻ります`
 4. Light: `押す度に上下が白く変化してライト代わりに` / `周りが暗い時に便利です`
 5. Fine controls: `細かい調整はここ` / `○で明るさ、＋でズーム`
-6. Stop: `過去のミラーを見返せます` / `最大5秒前まで戻って確認できます`
+6. Stabilization: `暗い場所でのブレを抑える` / `オンにするとフレームレートを固定してブレを減らします`
+7. Stop: `過去のミラーを見返せます` / `最大5秒前まで戻って確認できます`
 
 Show a separate first-run guide on the review screen the first time the user enters review. The automatic first-run guide and the top-right help replay must use the same review guide steps.
 
