@@ -1,0 +1,21 @@
+title: 過去ミラー / Kako Mirror
+description: 5秒遅れてプレビュー表示される、後ろ髪・横顔チェック用のプライバシー重視型ミラーアプリ。
+
+# Exclude Android project files and developer documentation from being served on GitHub Pages
+exclude:
+  - app/
+  - build/
+  - gradle/
+  - gradlew
+  - gradlew.bat
+  - local.properties
+  - SPEC.md
+  - AGENTS.md
+  - README.md
+  - build.gradle.kts
+  - settings.gradle.kts
+  - gradle.properties
+  - native_camera_reference.jpg
+  - row2_temp.png
+  - tmp-device-screens/
+  - dump.xml

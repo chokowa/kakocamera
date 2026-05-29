@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>過去ミラー 〜5秒遅れてプレビュー表示される鏡アプリ〜</title>
+  <meta name="description" content="過去ミラーは、数秒前の自分を確認できるプライバシー重視型のミラーアプリです。後ろ髪のセルフカットやヘアセット、横顔のメイク、背筋のチェックに最適です。画像や動画の保存は行わず、完全にローカル動作します。">
+  
+  <!-- Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&family=Noto+Sans+JP:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <style>
+    /* Design Tokens */
+    :root {
+      --bg-color: hsl(240, 12%, 8%);
+      --card-bg: hsla(240, 10%, 15%, 0.6);
+      --card-border: hsla(340, 30%, 50%, 0.15);
+      --text-main: hsl(210, 40%, 98%);
+      --text-muted: hsl(215, 20%, 75%);
+      --primary-rose: hsl(340, 75%, 65%);
+      --primary-rose-glow: hsla(340, 75%, 65%, 0.35);
+      --accent-silver: hsl(210, 30%, 90%);
+      --transition-speed: 0.3s;
+    }
+
+    /* Reset & Base */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans JP', sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-image: 
+        radial-gradient(circle at 10% 20%, hsla(340, 70%, 50%, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, hsla(210, 50%, 50%, 0.06) 0%, transparent 45%);
+    }
+
+    /* Layout Container */
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 2rem 1.5rem;
+      width: 100%;
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    /* Header Section */
+    header {
+      text-align: center;
+      margin-bottom: 3.5rem;
+      animation: fadeIn 1s ease-out;
+    }
+
+    .logo-container {
+      margin-bottom: 1.5rem;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app-icon-svg {
+      width: 80px;
+      height: 80px;
+      filter: drop-shadow(0 0 15px var(--primary-rose-glow));
+      animation: pulse 3s infinite ease-in-out;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+      background: linear-gradient(135deg, var(--text-main) 30%, var(--primary-rose) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -0.02em;
+    }
+
+    .tagline {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      max-width: 600px;
+      margin: 0 auto;
+      font-weight: 300;
+    }
+
+    /* App Preview / Feature Cards */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 1.75rem;
+      margin-bottom: 4rem;
+      animation: fadeInUp 0.8s ease-out;
+    }
+
+    .feature-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 2.25rem 2rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      transition: all var(--transition-speed) cubic-bezier(0.16, 1, 0.3, 1);
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(135deg, transparent 60%, hsla(340, 75%, 65%, 0.05) 100%);
+      pointer-events: none;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px);
+      border-color: hsla(340, 75%, 65%, 0.4);
+      box-shadow: 0 12px 30px -10px hsla(340, 75%, 65%, 0.15);
+    }
+
+    .icon-wrapper {
+      background: hsla(340, 75%, 65%, 0.12);
+      border-radius: 12px;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      color: var(--primary-rose);
+    }
+
+    .feature-card h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      margin-bottom: 0.75rem;
+      color: var(--accent-silver);
+    }
+
+    .feature-card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 300;
+    }
+
+    /* Call To Action / Details */
+    .info-section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 3rem;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      text-align: center;
+      margin-bottom: 3rem;
+      animation: fadeInUp 1s ease-out;
+    }
+
+    .info-section h3 {
+      font-size: 1.6rem;
+      margin-bottom: 1rem;
+      color: var(--text-main);
+    }
+
+    .info-section p {
+      font-size: 1rem;
+      color: var(--text-muted);
+      max-width: 700px;
+      margin: 0 auto 2rem;
+      font-weight: 300;
+    }
+
+    .button-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.9rem 2rem;
+      border-radius: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all var(--transition-speed) ease;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background: var(--primary-rose);
+      color: hsl(240, 12%, 8%);
+      box-shadow: 0 4px 15px var(--primary-rose-glow);
+    }
+
+    .btn-primary:hover {
+      background: hsl(340, 80%, 72%);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px hsla(340, 75%, 65%, 0.5);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+    }
+
+    .btn-secondary:hover {
+      background: hsla(240, 10%, 20%, 0.5);
+      border-color: var(--primary-rose);
+      transform: translateY(-2px);
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      padding: 2rem 0;
+      margin-top: auto;
+      border-top: 1px solid hsla(240, 5%, 20%, 0.3);
+      animation: fadeIn 1.2s ease-out;
+    }
+
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .footer-links a {
+      color: var(--text-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      transition: color var(--transition-speed) ease;
+    }
+
+    .footer-links a:hover {
+      color: var(--primary-rose);
+    }
+
+    .copyright {
+      font-size: 0.8rem;
+      color: hsla(215, 10%, 50%, 0.8);
+      font-weight: 300;
+    }
+
+    /* Keyframes */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); filter: drop-shadow(0 0 10px var(--primary-rose-glow)); }
+      50% { transform: scale(1.05); filter: drop-shadow(0 0 20px hsla(340, 75%, 65%, 0.5)); }
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.85rem;
+      }
+      .tagline {
+        font-size: 1rem;
+      }
+      .info-section {
+        padding: 2rem 1.5rem;
+      }
+      .btn {
+        width: 100%;
+      }
+      .footer-links {
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- Header -->
+    <header>
+      <div class="logo-container">
+        <!-- Minimalist Mirror & Delay Clock Custom SVG -->
+        <svg class="app-icon-svg" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="50" cy="50" r="45" stroke="url(#roseGradient)" stroke-width="4" fill="url(#glassGrad)" />
+          <path d="M50 20 V50 H70" stroke="url(#roseGradient)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+          <circle cx="50" cy="50" r="5" fill="hsl(340, 75%, 65%)" />
+          <defs>
+            <linearGradient id="roseGradient" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="hsl(340, 75%, 65%)" />
+              <stop offset="100%" stop-color="hsl(210, 30%, 90%)" />
+            </linearGradient>
+            <linearGradient id="glassGrad" x1="0" y1="0" x2="100" y2="100" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="hsla(240, 10%, 25%, 0.4)" />
+              <stop offset="100%" stop-color="hsla(240, 10%, 10%, 0.8)" />
+            </linearGradient>
+          </defs>
+        </svg>
+      </div>
+      <h1 id="app-title">過去ミラー</h1>
+      <p class="tagline">〜5秒遅れてプレビュー表示される鏡〜</p>
+    </header>
+
+    <!-- Features -->
+    <div class="features-grid">
+      
+      <!-- Feature 1: Delay Preview -->
+      <div class="feature-card">
+        <div class="icon-wrapper">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        </div>
+        <h2>秒単位の遅延プレビュー</h2>
+        <p>0.0秒〜5.0秒の間で遅延時間を自由に設定。カメラの前に立って静止することなく、流れるような動作で後ろ髪やメイクの仕上がりを確認できます。</p>
+      </div>
+
+      <!-- Feature 2: High Privacy -->
+      <div class="feature-card">
+        <div class="icon-wrapper">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+        </div>
+        <h2>保存しないプライバシー設計</h2>
+        <p>カメラ画像や動画は一切端末のストレージに保存されません。メモリ上の短いバッファ（最大5秒）のみで処理するローカルファースト仕様なので安心・安全です。</p>
+      </div>
+
+      <!-- Feature 3: Live Review -->
+      <div class="feature-card">
+        <div class="icon-wrapper">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 4v6h6M23 20v-6h-6"></path><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+        </div>
+        <h2>見返し・再生コントロール</h2>
+        <p>プレビューを停止（Stop）すると、直前の最大5秒間の動きをタイムラインでコマ戻し・再生できます。ヘアセットの乱れや背筋の動きを微細に分析可能です。</p>
+      </div>
+
+    </div>
+
+    <!-- Call to Action / Info -->
+    <div class="info-section">
+      <h3>後ろ髪・横顔チェックを、もっと簡単・スマートに。</h3>
+      <p>「合わせ鏡で見るのが難しい」「写真に撮って確認するのが面倒」といった日常の悩みを解消するために開発された、身だしなみ専用のミラーツールです。</p>
+      
+      <div class="button-group">
+        <a href="privacy_policy.html" class="btn btn-primary" id="btn-privacy">プライバシーポリシーを見る</a>
+        <a href="mailto:chokowad@gmail.com" class="btn btn-secondary" id="btn-contact">サポート・お問い合わせ</a>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-links">
+      <a href="privacy_policy.html">プライバシーポリシー</a>
+      <a href="mailto:chokowad@gmail.com">お問い合わせ</a>
+    </div>
+    <p class="copyright">&copy; 2026 Chokowa. All rights reserved.</p>
+  </footer>
+
+</body>
+</html>
